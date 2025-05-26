@@ -1,9 +1,8 @@
 const express = require("express");
-const Docker = require("dockerode");
 const crypto = require("crypto");
+const BackendFactory = require("./lib/backend-factory");
 
 const app = express();
-const docker = new Docker();
 
 app.use(express.json());
 
@@ -27,36 +26,20 @@ app.get("/health", (req, res) => {
 app.post("/containers/create", authenticate, async (req, res) => {
     try {
         const config = req.body;
-        const containerName = `cf-${config.id}`;
         
-        const container = await docker.createContainer({
-            name: containerName,
-            Image: config.image,
-            Cmd: config.cmd,
-            Env: config.env || [],
-            HostConfig: {
-                Memory: parseInt(config.maxMemory) * 1024 * 1024,
-                // Removed CPU quota settings to avoid cgroup errors
-                // CpuQuota: parseInt(config.maxCpu * 100000),
-                // CpuPeriod: 100000,
-                NetworkMode: "cf-network",
-                AutoRemove: true
-            },
-            Labels: {
-                "cf-user": config.userId,
-                "cf-role": config.userRole,
-                "cf-created": new Date().toISOString()
-            }
-        });
+        // Determine backend based on requirements
+        const backendType = config.backendType || BackendFactory.autoSelectBackend(config);
+        const backend = BackendFactory.create(backendType);
         
-        await container.start();
-        const info = await container.inspect();
+        const containerId = await backend.create(config);
+        const info = await backend.getInfo(containerId);
         
         res.json({
-            id: info.Id,
-            name: containerName,
-            status: "running",
-            ports: info.NetworkSettings.Ports
+            id: containerId,
+            name: info.name,
+            status: info.status,
+            backend: backendType,
+            ports: info.ports || {}
         });
     } catch (error) {
         res.status(500).json({error: error.message});
@@ -66,32 +49,156 @@ app.post("/containers/create", authenticate, async (req, res) => {
 // Execute command in container
 app.post('/containers/:id/exec', authenticate, async (req, res) => {
   try {
-    const { command } = req.body;
-    const container = docker.getContainer(req.params.id);
+    const { command, backendType } = req.body;
+    const containerId = req.params.id;
+    
+    // Auto-detect backend if not specified
+    let backend;
+    if (backendType) {
+      backend = BackendFactory.create(backendType);
+    } else {
+      // Try Docker first, then LXC
+      try {
+        backend = BackendFactory.create('docker');
+        await backend.getInfo(containerId);
+      } catch (dockerError) {
+        try {
+          backend = BackendFactory.create('lxc');
+          await backend.getInfo(containerId);
+        } catch (lxcError) {
+          throw new Error(`Container ${containerId} not found in any backend`);
+        }
+      }
+    }
+    
+    const result = await backend.exec(containerId, command);
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
-    // Create exec instance
-    const exec = await container.exec({
-      Cmd: command.split(' '),
-      AttachStdout: true,
-      AttachStderr: true
-    });
+// List containers
+app.get('/containers', authenticate, async (req, res) => {
+  try {
+    const dockerBackend = BackendFactory.create('docker');
+    const lxcBackend = BackendFactory.create('lxc');
+    
+    const [dockerContainers, lxcContainers] = await Promise.allSettled([
+      dockerBackend.list(),
+      lxcBackend.list()
+    ]);
+    
+    const containers = [
+      ...(dockerContainers.status === 'fulfilled' ? dockerContainers.value : []),
+      ...(lxcContainers.status === 'fulfilled' ? lxcContainers.value : [])
+    ];
+    
+    res.json({ containers });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
-    // Start exec and get output
-    const stream = await exec.start({ hijack: true });
+// Get container info
+app.get('/containers/:id', authenticate, async (req, res) => {
+  try {
+    const containerId = req.params.id;
+    const { backendType } = req.query;
+    
+    let backend;
+    if (backendType) {
+      backend = BackendFactory.create(backendType);
+    } else {
+      // Auto-detect backend
+      try {
+        backend = BackendFactory.create('docker');
+        await backend.getInfo(containerId);
+      } catch (dockerError) {
+        backend = BackendFactory.create('lxc');
+      }
+    }
+    
+    const info = await backend.getInfo(containerId);
+    res.json({ ...info, backend: backend.getBackendType() });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
-    let output = '';
-    stream.on('data', (chunk) => {
-      output += chunk.toString();
-    });
+// Stop container
+app.post('/containers/:id/stop', authenticate, async (req, res) => {
+  try {
+    const containerId = req.params.id;
+    const { backendType } = req.body;
+    
+    let backend;
+    if (backendType) {
+      backend = BackendFactory.create(backendType);
+    } else {
+      // Auto-detect backend
+      try {
+        backend = BackendFactory.create('docker');
+        await backend.getInfo(containerId);
+      } catch (dockerError) {
+        backend = BackendFactory.create('lxc');
+      }
+    }
+    
+    await backend.stop(containerId);
+    res.json({ message: 'Container stopped successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
-    await new Promise((resolve) => {
-      stream.on('end', resolve);
-    });
+// Remove container
+app.delete('/containers/:id', authenticate, async (req, res) => {
+  try {
+    const containerId = req.params.id;
+    const { backendType } = req.body;
+    
+    let backend;
+    if (backendType) {
+      backend = BackendFactory.create(backendType);
+    } else {
+      // Auto-detect backend
+      try {
+        backend = BackendFactory.create('docker');
+        await backend.getInfo(containerId);
+      } catch (dockerError) {
+        backend = BackendFactory.create('lxc');
+      }
+    }
+    
+    await backend.remove(containerId);
+    res.json({ message: 'Container removed successfully' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 
-    res.json({
-      output: output,
-      exitCode: 0
-    });
+// Get container logs
+app.get('/containers/:id/logs', authenticate, async (req, res) => {
+  try {
+    const containerId = req.params.id;
+    const { backendType, lines = 100 } = req.query;
+    
+    let backend;
+    if (backendType) {
+      backend = BackendFactory.create(backendType);
+    } else {
+      // Auto-detect backend
+      try {
+        backend = BackendFactory.create('docker');
+        await backend.getInfo(containerId);
+      } catch (dockerError) {
+        backend = BackendFactory.create('lxc');
+      }
+    }
+    
+    const logs = await backend.getLogs(containerId, parseInt(lines));
+    res.json({ logs });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
