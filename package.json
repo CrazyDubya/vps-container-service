@@ -1,0 +1,1 @@
+{"name":"cf-container-service","version":"1.0.0","main":"container-service.js","dependencies":{"express":"^4.18.2","dockerode":"^4.0.2"}}
