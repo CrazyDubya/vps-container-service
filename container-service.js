@@ -204,7 +204,7 @@ app.get('/containers/:id/logs', authenticate, async (req, res) => {
   }
 });
 
-const PORT = 8080;
+const PORT = process.env.PORT || 8081;
 app.listen(PORT, () => {
     console.log(`Container service running on port ${PORT}`);
     console.log(`API Key: ${API_KEY}`);
