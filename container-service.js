@@ -25,7 +25,39 @@ app.get("/health", (req, res) => {
 
 app.post("/containers/create", authenticate, async (req, res) => {
     try {
-        const config = req.body;
+        let config = { ...req.body };
+        
+        // Handle template vs image parameter compatibility
+        if (config.template && !config.image) {
+            const templateMap = {
+                'ubuntu': 'ubuntu:latest',
+                'alpine': 'alpine:latest',
+                'python': 'python:3.9-alpine',
+                'nodejs': 'node:18-alpine',
+                'node': 'node:18-alpine',
+                'nginx': 'nginx:alpine'
+            };
+            config.image = templateMap[config.template] || config.template;
+        }
+        
+        // Handle memory vs maxMemory parameter compatibility
+        if (config.memory && !config.maxMemory) {
+            // Convert memory format like "128m" to number
+            const memoryStr = config.memory.toString().toLowerCase();
+            if (memoryStr.endsWith('m')) {
+                config.maxMemory = parseInt(memoryStr.slice(0, -1));
+            } else {
+                config.maxMemory = parseInt(memoryStr) || 256;
+            }
+        }
+        
+        // Set defaults
+        if (!config.image) {
+            return res.status(400).json({ error: 'Image or template required' });
+        }
+        if (!config.maxMemory) {
+            config.maxMemory = 256;
+        }
         
         // Determine backend based on requirements
         const backendType = config.backendType || BackendFactory.autoSelectBackend(config);
@@ -204,7 +236,7 @@ app.get('/containers/:id/logs', authenticate, async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 8081;
+const PORT = process.env.PORT || 8082;
 app.listen(PORT, () => {
     console.log(`Container service running on port ${PORT}`);
     console.log(`API Key: ${API_KEY}`);
