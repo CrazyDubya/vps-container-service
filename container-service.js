@@ -235,17 +235,185 @@ app.post("/containers/create", authenticate, async (req, res) => {
             });
         }
         
-        // Handle template vs image parameter compatibility
+        // Enhanced container templates with language-specific configurations
         if (config.template && !config.image) {
-            const templateMap = {
-                'ubuntu': 'ubuntu:latest',
-                'alpine': 'alpine:latest',
-                'python': 'python:3.9-alpine',
-                'nodejs': 'node:18-alpine',
-                'node': 'node:18-alpine',
-                'nginx': 'nginx:alpine'
+            const templates = {
+                // Base systems
+                'ubuntu': {
+                    image: 'ubuntu:22.04',
+                    workdir: '/workspace',
+                    env: ['DEBIAN_FRONTEND=noninteractive'],
+                    init: [
+                        'apt-get update && apt-get install -y curl wget git nano vim build-essential',
+                        'useradd -m -s /bin/bash developer && echo "developer ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers'
+                    ]
+                },
+                'alpine': {
+                    image: 'alpine:latest',
+                    workdir: '/workspace',
+                    init: ['apk add --no-cache curl wget git nano vim build-base']
+                },
+                
+                // Programming languages
+                'python': {
+                    image: 'python:3.11-slim',
+                    workdir: '/workspace',
+                    env: ['PYTHONPATH=/workspace', 'PIP_CACHE_DIR=/workspace/.pip'],
+                    init: [
+                        'apt-get update && apt-get install -y git curl',
+                        'pip install --upgrade pip setuptools wheel',
+                        'pip install numpy pandas requests matplotlib jupyter notebook flask fastapi'
+                    ],
+                    volumes: [
+                        {name: 'notebooks', path: '/workspace/notebooks'},
+                        {name: 'data', path: '/workspace/data'}
+                    ]
+                },
+                'nodejs': {
+                    image: 'node:20-alpine',
+                    workdir: '/workspace',
+                    env: ['NODE_ENV=development', 'NPM_CONFIG_CACHE=/workspace/.npm'],
+                    init: [
+                        'apk add --no-cache git curl python3 make g++',
+                        'npm install -g typescript ts-node nodemon express-generator create-react-app'
+                    ],
+                    volumes: [
+                        {name: 'projects', path: '/workspace/projects'},
+                        {name: 'node_modules', path: '/workspace/node_modules'}
+                    ]
+                },
+                'node': {
+                    image: 'node:20-alpine',
+                    workdir: '/workspace',
+                    env: ['NODE_ENV=development'],
+                    init: ['apk add --no-cache git curl', 'npm install -g typescript nodemon']
+                },
+                'golang': {
+                    image: 'golang:1.21-alpine',
+                    workdir: '/go/src/app',
+                    env: ['GOPATH=/go', 'CGO_ENABLED=0'],
+                    init: [
+                        'apk add --no-cache git curl',
+                        'go install github.com/air-verse/air@latest',
+                        'go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest'
+                    ],
+                    volumes: [
+                        {name: 'gopath', path: '/go'},
+                        {name: 'projects', path: '/go/src/app'}
+                    ]
+                },
+                'rust': {
+                    image: 'rust:1.75-alpine',
+                    workdir: '/workspace',
+                    env: ['CARGO_HOME=/workspace/.cargo'],
+                    init: [
+                        'apk add --no-cache git curl build-base',
+                        'rustup component add rustfmt clippy',
+                        'cargo install cargo-watch cargo-edit'
+                    ],
+                    volumes: [
+                        {name: 'cargo', path: '/workspace/.cargo'},
+                        {name: 'projects', path: '/workspace/projects'}
+                    ]
+                },
+                'java': {
+                    image: 'openjdk:21-jdk-slim',
+                    workdir: '/workspace',
+                    env: ['MAVEN_HOME=/opt/maven', 'GRADLE_HOME=/opt/gradle'],
+                    init: [
+                        'apt-get update && apt-get install -y curl wget git',
+                        'wget -O /tmp/maven.tar.gz https://dlcdn.apache.org/maven/maven-3/3.9.6/binaries/apache-maven-3.9.6-bin.tar.gz',
+                        'tar -xzf /tmp/maven.tar.gz -C /opt && ln -s /opt/apache-maven-3.9.6 /opt/maven',
+                        'echo "export PATH=$PATH:/opt/maven/bin" >> /etc/bash.bashrc'
+                    ],
+                    volumes: [
+                        {name: 'maven', path: '/workspace/.m2'},
+                        {name: 'projects', path: '/workspace/projects'}
+                    ]
+                },
+                
+                // Web servers and services
+                'nginx': {
+                    image: 'nginx:alpine',
+                    workdir: '/usr/share/nginx/html',
+                    init: ['apk add --no-cache curl'],
+                    ports: {'80/tcp': '8080'},
+                    volumes: [
+                        {name: 'html', path: '/usr/share/nginx/html'},
+                        {name: 'conf', path: '/etc/nginx/conf.d'}
+                    ]
+                },
+                'apache': {
+                    image: 'httpd:2.4-alpine',
+                    workdir: '/usr/local/apache2/htdocs',
+                    init: ['apk add --no-cache curl'],
+                    ports: {'80/tcp': '8080'},
+                    volumes: [
+                        {name: 'htdocs', path: '/usr/local/apache2/htdocs'},
+                        {name: 'conf', path: '/usr/local/apache2/conf'}
+                    ]
+                },
+                
+                // Databases
+                'postgres': {
+                    image: 'postgres:15-alpine',
+                    workdir: '/workspace',
+                    env: ['POSTGRES_PASSWORD=dev123', 'POSTGRES_DB=devdb'],
+                    init: ['apk add --no-cache curl'],
+                    ports: {'5432/tcp': '5432'},
+                    volumes: [
+                        {name: 'pgdata', path: '/var/lib/postgresql/data'},
+                        {name: 'scripts', path: '/workspace/scripts'}
+                    ]
+                },
+                'redis': {
+                    image: 'redis:7-alpine',
+                    workdir: '/workspace',
+                    init: ['apk add --no-cache curl'],
+                    ports: {'6379/tcp': '6379'},
+                    volumes: [
+                        {name: 'data', path: '/data'}
+                    ]
+                },
+                
+                // AI/ML
+                'pytorch': {
+                    image: 'pytorch/pytorch:latest',
+                    workdir: '/workspace',
+                    env: ['JUPYTER_ENABLE_LAB=yes'],
+                    init: [
+                        'apt-get update && apt-get install -y git curl',
+                        'pip install jupyter notebook jupyterlab pandas numpy matplotlib seaborn scikit-learn'
+                    ],
+                    volumes: [
+                        {name: 'notebooks', path: '/workspace/notebooks'},
+                        {name: 'data', path: '/workspace/data'},
+                        {name: 'models', path: '/workspace/models'}
+                    ]
+                },
+                'tensorflow': {
+                    image: 'tensorflow/tensorflow:latest-jupyter',
+                    workdir: '/tf/notebooks',
+                    env: ['JUPYTER_ENABLE_LAB=yes'],
+                    ports: {'8888/tcp': '8888'},
+                    volumes: [
+                        {name: 'notebooks', path: '/tf/notebooks'},
+                        {name: 'data', path: '/tf/data'}
+                    ]
+                }
             };
-            config.image = templateMap[config.template] || config.template;
+            
+            const template = templates[config.template];
+            if (template) {
+                config.image = template.image;
+                config.workdir = template.workdir || '/workspace';
+                config.env = [...(config.env || []), ...(template.env || [])];
+                config.init = template.init || [];
+                config.volumes = [...(config.volumes || []), ...(template.volumes || [])];
+                config.ports = {...(config.ports || {}), ...(template.ports || {})};
+            } else {
+                config.image = config.template; // Fallback to using template as image name
+            }
         }
         
         // Handle memory vs maxMemory parameter compatibility
@@ -275,6 +443,12 @@ app.post("/containers/create", authenticate, async (req, res) => {
         // Add user info to config
         config.userId = userId;
         config.userRole = config.userRole || 'user';
+        
+        // Handle template initialization commands
+        if (config.init && Array.isArray(config.init)) {
+            config.initCommands = config.init;
+            delete config.init; // Remove from config to avoid conflicts
+        }
         
         // Determine backend based on requirements
         const backendType = config.backendType || BackendFactory.autoSelectBackend(config);
@@ -715,6 +889,51 @@ app.get('/limits', authenticate, async (req, res) => {
         defaultTtl: DEFAULT_CONTAINER_TTL,
         cleanupInterval: CLEANUP_INTERVAL
       }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// List available container templates
+app.get('/templates', authenticate, async (req, res) => {
+  try {
+    const templates = {
+      'Base Systems': {
+        ubuntu: 'Ubuntu 22.04 with development tools',
+        alpine: 'Alpine Linux minimal container'
+      },
+      'Programming Languages': {
+        python: 'Python 3.11 with data science libraries',
+        nodejs: 'Node.js 20 with TypeScript and tools',
+        golang: 'Go 1.21 with development tools',
+        rust: 'Rust 1.75 with Cargo tools',
+        java: 'OpenJDK 21 with Maven'
+      },
+      'Web Servers': {
+        nginx: 'Nginx web server',
+        apache: 'Apache HTTP server'
+      },
+      'Databases': {
+        postgres: 'PostgreSQL 15 database',
+        redis: 'Redis key-value store'
+      },
+      'AI/ML': {
+        pytorch: 'PyTorch with Jupyter',
+        tensorflow: 'TensorFlow with Jupyter'
+      }
+    };
+    
+    res.json({
+      templates,
+      usage: 'Use template parameter in container creation: {"template": "python", "maxMemory": 512}',
+      features: [
+        'Pre-configured development environments',
+        'Language-specific tools and packages',
+        'Optimized volume mappings',
+        'Environment variables',
+        'Automatic initialization scripts'
+      ]
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
