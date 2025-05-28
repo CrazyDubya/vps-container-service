@@ -589,7 +589,9 @@ app.get('/containers/:id/stats', authenticate, async (req, res) => {
     
     if (backend.getBackendType() === 'docker') {
       const { exec } = require('child_process');
-      const statsCmd = `docker stats ${containerId} --no-stream --format "table {{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}\t{{.NetIO}}\t{{.BlockIO}}"`;
+      
+      // Use JSON format for more reliable parsing
+      const statsCmd = `docker stats ${containerId} --no-stream --format "{{json .}}"`;
       
       const output = await new Promise((resolve, reject) => {
         exec(statsCmd, (error, stdout, stderr) => {
@@ -601,23 +603,50 @@ app.get('/containers/:id/stats', authenticate, async (req, res) => {
         });
       });
       
-      // Parse stats output
-      const lines = output.trim().split('\n');
-      if (lines.length >= 2) {
-        const [cpu, memUsage, memPerc, netIO, blockIO] = lines[1].split('\t');
+      try {
+        const stats = JSON.parse(output.trim());
         
         res.json({
-          cpu: cpu.trim(),
+          cpu: stats.CPUPerc || '0.00%',
           memory: {
-            usage: memUsage.trim(),
-            percent: memPerc.trim()
+            usage: stats.MemUsage || '0B / 0B',
+            percent: stats.MemPerc || '0.00%'
           },
-          network: netIO.trim(),
-          disk: blockIO.trim(),
+          network: {
+            input: stats.NetIO ? stats.NetIO.split(' / ')[0] : '0B',
+            output: stats.NetIO ? stats.NetIO.split(' / ')[1] : '0B'
+          },
+          disk: {
+            read: stats.BlockIO ? stats.BlockIO.split(' / ')[0] : '0B',
+            write: stats.BlockIO ? stats.BlockIO.split(' / ')[1] : '0B'
+          },
+          pids: stats.PIDs || '0',
+          container: {
+            id: stats.Container || containerId,
+            name: stats.Name || 'unknown'
+          },
           timestamp: new Date().toISOString()
         });
-      } else {
-        res.json({ error: 'Unable to parse stats' });
+      } catch (parseError) {
+        // Fallback to simpler stats if JSON parsing fails
+        const simpleStatsCmd = `docker stats ${containerId} --no-stream --format "{{.CPUPerc}},{{.MemUsage}},{{.MemPerc}}"`;
+        
+        exec(simpleStatsCmd, (error, stdout, stderr) => {
+          if (error) {
+            res.status(500).json({ error: 'Failed to get container stats' });
+          } else {
+            const [cpu, memUsage, memPerc] = stdout.trim().split(',');
+            res.json({
+              cpu: cpu || '0.00%',
+              memory: {
+                usage: memUsage || '0B / 0B',
+                percent: memPerc || '0.00%'
+              },
+              timestamp: new Date().toISOString(),
+              note: 'Limited stats due to parsing issues'
+            });
+          }
+        });
       }
     } else {
       res.status(501).json({ error: 'Stats not yet supported for LXC containers' });
