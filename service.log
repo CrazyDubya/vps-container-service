@@ -1,13 +1,13 @@
-API Key: b347649ff7d9c222cd71d4ff6ee7fef73728159b57aa7d5d82f5d32d63bfae26
+API Key: dec30e86d663a83641de4177bf2c9621fef46bf7ccfcdb9794da7e652d677099
 node:events:496
       throw er; // Unhandled 'error' event
       ^
 
-Error: listen EADDRINUSE: address already in use :::8082
+Error: listen EADDRINUSE: address already in use :::3000
     at Server.setupListenHandle [as _listen2] (node:net:1937:16)
     at listenInCluster (node:net:1994:12)
     at Server.listen (node:net:2099:7)
-    at Object.<anonymous> (/home/cfworker-admin/cf-container-service/container-service.js:533:8)
+    at Object.<anonymous> (/home/cfworker-admin/cf-container-service/container-service.js:696:8)
     at Module._compile (node:internal/modules/cjs/loader:1554:14)
     at Object..js (node:internal/modules/cjs/loader:1706:10)
     at Module.load (node:internal/modules/cjs/loader:1289:32)
@@ -22,7 +22,7 @@ Emitted 'error' event on WebSocketServer instance at:
   errno: -98,
   syscall: 'listen',
   address: '::',
-  port: 8082
+  port: 3000
 }
 
 Node.js v22.14.0

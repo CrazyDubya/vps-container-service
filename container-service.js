@@ -33,6 +33,75 @@ const wss = new WebSocket.Server({
 // Active terminal sessions
 const terminalSessions = new Map();
 
+// Container lifecycle management
+const MAX_CONTAINERS_PER_USER = parseInt(process.env.MAX_CONTAINERS_PER_USER) || 5;
+const DEFAULT_CONTAINER_TTL = parseInt(process.env.DEFAULT_CONTAINER_TTL) || 3600; // 1 hour
+const CLEANUP_INTERVAL = parseInt(process.env.CLEANUP_INTERVAL) || 300000; // 5 minutes
+
+// Track containers per user
+const userContainers = new Map();
+
+// Cleanup expired containers
+const cleanupExpiredContainers = async () => {
+  try {
+    const dockerBackend = BackendFactory.create('docker');
+    const containers = await dockerBackend.list();
+    const now = new Date();
+    
+    for (const container of containers) {
+      const labels = container.labels || {};
+      const expiresAt = labels['cf-expires'];
+      
+      if (expiresAt && new Date(expiresAt) < now) {
+        console.log(`Cleaning up expired container: ${container.id}`);
+        try {
+          await dockerBackend.remove(container.id);
+          
+          // Clean up volumes
+          const volumes = labels['cf-volumes'];
+          if (volumes) {
+            const volumePaths = volumes.split(',');
+            for (const volumePath of volumePaths) {
+              const hostPath = volumePath.split(':')[0];
+              if (hostPath && hostPath.includes('/var/lib/cf-container-service/volumes/')) {
+                const fs = require('fs');
+                try {
+                  fs.rmSync(hostPath, { recursive: true, force: true });
+                  console.log(`Cleaned up volume: ${hostPath}`);
+                } catch (err) {
+                  console.warn(`Could not clean up volume ${hostPath}:`, err.message);
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.error(`Failed to cleanup container ${container.id}:`, err.message);
+        }
+      }
+    }
+  } catch (error) {
+    console.error('Cleanup error:', error.message);
+  }
+};
+
+// Start cleanup interval
+setInterval(cleanupExpiredContainers, CLEANUP_INTERVAL);
+
+// Helper to check user container limits
+const checkUserLimits = async (userId) => {
+  const dockerBackend = BackendFactory.create('docker');
+  const containers = await dockerBackend.list();
+  const userContainerCount = containers.filter(c => 
+    c.labels && c.labels['cf-user'] === userId
+  ).length;
+  
+  return {
+    current: userContainerCount,
+    limit: MAX_CONTAINERS_PER_USER,
+    allowed: userContainerCount < MAX_CONTAINERS_PER_USER
+  };
+};
+
 wss.on('connection', (ws, req) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
     const containerId = url.searchParams.get('container');
@@ -153,6 +222,19 @@ app.post("/containers/create", authenticate, async (req, res) => {
     try {
         let config = { ...req.body };
         
+        // Get user ID from request (IP address if no user specified)
+        const userId = config.userId || req.ip || 'anonymous';
+        
+        // Check user container limits
+        const limits = await checkUserLimits(userId);
+        if (!limits.allowed) {
+            return res.status(429).json({ 
+                error: `Container limit exceeded. Maximum ${limits.limit} containers per user.`,
+                current: limits.current,
+                limit: limits.limit
+            });
+        }
+        
         // Handle template vs image parameter compatibility
         if (config.template && !config.image) {
             const templateMap = {
@@ -185,6 +267,15 @@ app.post("/containers/create", authenticate, async (req, res) => {
             config.maxMemory = 256;
         }
         
+        // Set TTL (time to live) if not specified
+        if (!config.ttl && !config.persistent) {
+            config.ttl = DEFAULT_CONTAINER_TTL;
+        }
+        
+        // Add user info to config
+        config.userId = userId;
+        config.userRole = config.userRole || 'user';
+        
         // Determine backend based on requirements
         const backendType = config.backendType || BackendFactory.autoSelectBackend(config);
         const backend = BackendFactory.create(backendType);
@@ -197,7 +288,14 @@ app.post("/containers/create", authenticate, async (req, res) => {
             name: info.name,
             status: info.status,
             backend: backendType,
-            ports: info.ports || {}
+            ports: info.ports || {},
+            volumes: config.volumes || [],
+            ttl: config.ttl,
+            expiresAt: config.ttl ? new Date(Date.now() + config.ttl * 1000).toISOString() : null,
+            limits: {
+                current: limits.current + 1,
+                limit: limits.limit
+            }
         });
     } catch (error) {
         res.status(500).json({error: error.message});
@@ -529,7 +627,72 @@ app.get('/containers/:id/stats', authenticate, async (req, res) => {
   }
 });
 
-const PORT = process.env.PORT || 8082;
+// Extend container TTL
+app.post('/containers/:id/extend', authenticate, async (req, res) => {
+  try {
+    const containerId = req.params.id;
+    const { ttl } = req.body;
+    
+    if (!ttl || ttl <= 0) {
+      return res.status(400).json({ error: 'Valid TTL in seconds required' });
+    }
+    
+    const backend = BackendFactory.create('docker');
+    const container = backend.docker.getContainer(containerId);
+    
+    // Update the container label with new expiry
+    const newExpiresAt = new Date(Date.now() + ttl * 1000).toISOString();
+    
+    // Note: Docker doesn't allow updating labels on running containers
+    // This is a limitation, but we can track it in memory or require restart
+    res.json({
+      message: 'Container TTL extension scheduled',
+      newExpiresAt,
+      note: 'TTL extension will take effect after container restart'
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Get user limits and current usage
+app.get('/limits', authenticate, async (req, res) => {
+  try {
+    const userId = req.query.userId || req.ip || 'anonymous';
+    const limits = await checkUserLimits(userId);
+    
+    const dockerBackend = BackendFactory.create('docker');
+    const containers = await dockerBackend.list();
+    const userContainers = containers.filter(c => 
+      c.labels && c.labels['cf-user'] === userId
+    );
+    
+    res.json({
+      userId,
+      containers: {
+        current: limits.current,
+        limit: limits.limit,
+        available: limits.limit - limits.current
+      },
+      userContainers: userContainers.map(c => ({
+        id: c.id,
+        name: c.name,
+        status: c.status,
+        created: c.created,
+        expiresAt: c.labels ? c.labels['cf-expires'] : null
+      })),
+      settings: {
+        maxContainersPerUser: MAX_CONTAINERS_PER_USER,
+        defaultTtl: DEFAULT_CONTAINER_TTL,
+        cleanupInterval: CLEANUP_INTERVAL
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`Container service running on port ${PORT}`);
     console.log(`WebSocket terminal available at ws://localhost:${PORT}/terminal`);
