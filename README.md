@@ -65,8 +65,14 @@ cd vps-container-service
 # Install dependencies
 npm install
 
+# Pre-download container images for faster startup (recommended)
+npm run setup
+
 # Start the service
 npm start
+
+# Or start with public tunnel access
+npm start & npm run tunnel
 ```
 
 The service will start on port 3000 and display the API key for authentication.

@@ -3,11 +3,14 @@
   "version": "1.0.0",
   "main": "container-service.js",
   "scripts": {
-    "start": "node container-service.js",
+    "start": "node container-service-v2.js",
+    "start:legacy": "node container-service.js",
+    "setup": "./setup-images.sh",
     "test": "node tests/run-tests.js",
     "test:unit": "jest tests/container-service.test.js",
     "test:watch": "jest --watch",
-    "dev": "nodemon container-service.js"
+    "dev": "nodemon container-service-v2.js",
+    "tunnel": "npx localtunnel --port 3000 --subdomain vps-container"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

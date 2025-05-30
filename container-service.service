@@ -1,0 +1,26 @@
+[Unit]
+Description=CF Container Service
+After=network.target lxd.service
+
+[Service]
+Type=simple
+User=stephen
+WorkingDirectory=/home/stephen/vps-container-service
+Environment="NODE_ENV=production"
+Environment="ADMIN_PASSWORD=admin123"
+Environment="PORT=3000"
+Environment="HTTPS_PORT=3443"
+ExecStart=/usr/bin/node container-service-v2.js
+Restart=always
+RestartSec=10
+
+# Security
+NoNewPrivileges=true
+PrivateTmp=true
+
+# Logging
+StandardOutput=append:/home/stephen/vps-container-service/service.log
+StandardError=append:/home/stephen/vps-container-service/service.log
+
+[Install]
+WantedBy=multi-user.target
