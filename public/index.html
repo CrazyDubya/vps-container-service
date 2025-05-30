@@ -1,0 +1,621 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Container Service - User Management</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        h1, h2 {
+            margin: 0 0 20px 0;
+            color: #333;
+        }
+        .form-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .error {
+            color: #dc3545;
+            margin-top: 10px;
+        }
+        .success {
+            color: #28a745;
+            margin-top: 10px;
+        }
+        .info-box {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+        .code {
+            font-family: monospace;
+            background: #f1f3f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+        .hidden {
+            display: none;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            text-align: left;
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background: #f8f9fa;
+            font-weight: 600;
+        }
+        .tab-nav {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #dee2e6;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s;
+        }
+        .tab.active {
+            border-bottom-color: #007bff;
+            color: #007bff;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <h1>🐳 Container Service - User Management</h1>
+    
+    <div class="container" id="authSection">
+        <div class="tab-nav">
+            <div class="tab active" onclick="switchTab('login')">Login</div>
+            <div class="tab" onclick="switchTab('register')">Register</div>
+        </div>
+        
+        <div id="loginTab" class="tab-content active">
+            <h2>Login</h2>
+            <form id="loginForm">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="loginUsername" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="loginPassword" required>
+                </div>
+                <button type="submit">Login</button>
+                <div id="loginMessage"></div>
+            </form>
+        </div>
+        
+        <div id="registerTab" class="tab-content">
+            <h2>Register New User</h2>
+            <form id="registerForm">
+                <div class="form-group">
+                    <label>Username</label>
+                    <input type="text" id="registerUsername" required minlength="3">
+                </div>
+                <div class="form-group">
+                    <label>Email</label>
+                    <input type="email" id="registerEmail" required>
+                </div>
+                <div class="form-group">
+                    <label>Password</label>
+                    <input type="password" id="registerPassword" required minlength="8">
+                </div>
+                <button type="submit">Register</button>
+                <div id="registerMessage"></div>
+            </form>
+        </div>
+    </div>
+    
+    <div class="container hidden" id="dashboardSection">
+        <h2>Welcome, <span id="username"></span>!</h2>
+        <button onclick="logout()">Logout</button>
+        
+        <div class="info-box">
+            <h3>Your API Key</h3>
+            <p class="code" id="apiKey">Loading...</p>
+            <button onclick="regenerateApiKey()">Regenerate API Key</button>
+        </div>
+        
+        <div class="info-box">
+            <h3>Container Usage</h3>
+            <p>Containers Used: <span id="containersUsed">0</span> / <span id="containerLimit">5</span></p>
+            <p>Role: <span id="userRole">user</span></p>
+        </div>
+        
+        <div class="info-box">
+            <h3>🐳 Container Management</h3>
+            <div style="margin-bottom: 20px;">
+                <button onclick="loadContainers()">Refresh Containers</button>
+                <button onclick="showCreateContainer()">Create New Container</button>
+            </div>
+            
+            <div id="createContainerForm" class="hidden" style="margin-bottom: 20px; padding: 15px; border: 1px solid #ddd; border-radius: 4px;">
+                <h4>Create New Container</h4>
+                <div class="form-group">
+                    <label>Template</label>
+                    <select id="containerTemplate">
+                        <option value="ubuntu">Ubuntu 22.04</option>
+                        <option value="python">Python 3.11</option>
+                        <option value="node">Node.js 20</option>
+                        <option value="go">Go 1.21</option>
+                        <option value="rust">Rust 1.75</option>
+                        <option value="java">Java 21</option>
+                        <option value="nginx">Nginx</option>
+                        <option value="postgres">PostgreSQL</option>
+                        <option value="redis">Redis</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Memory Limit (MB)</label>
+                    <input type="number" id="containerMemory" value="512" min="128" max="2048">
+                </div>
+                <div class="form-group">
+                    <label>TTL (seconds)</label>
+                    <input type="number" id="containerTTL" value="3600" min="300" max="86400">
+                </div>
+                <button onclick="createContainer()">Create Container</button>
+                <button onclick="hideCreateContainer()">Cancel</button>
+                <div id="createMessage"></div>
+            </div>
+            
+            <table id="containersTable" class="hidden">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Image</th>
+                        <th>Status</th>
+                        <th>Created</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="containersTableBody"></tbody>
+            </table>
+            <div id="containersMessage">Click "Refresh Containers" to load your containers</div>
+        </div>
+        
+        <div class="info-box">
+            <h3>Example API Calls</h3>
+            <pre class="code">
+# Using API Key
+curl -H "x-api-key: YOUR_API_KEY" https://vps-container.loca.lt/containers
+
+# Create a Python container
+curl -X POST -H "x-api-key: YOUR_API_KEY" \
+     -H "Content-Type: application/json" \
+     -d '{"template": "python"}' \
+     https://vps-container.loca.lt/containers/create
+            </pre>
+        </div>
+        
+        <div id="adminSection" class="hidden">
+            <h3>Admin Panel</h3>
+            <button onclick="loadUsers()">Load Users</button>
+            <table id="usersTable" class="hidden">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Username</th>
+                        <th>Email</th>
+                        <th>Role</th>
+                        <th>Containers</th>
+                        <th>Active</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody id="usersTableBody"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // Auto-detect protocol and use appropriate URL
+        const protocol = window.location.protocol;
+        const host = window.location.hostname;
+        
+        // For tunnel access, don't append port
+        let API_URL;
+        if (host.includes('loca.lt') || host.includes('ngrok.io')) {
+            API_URL = `${protocol}//${host}`;
+        } else {
+            const port = window.location.port || (protocol === 'https:' ? '3443' : '3000');
+            API_URL = `${protocol}//${host}:${port}`;
+        }
+        
+        let authToken = localStorage.getItem('authToken');
+        let currentUser = null;
+
+        // Check if already logged in
+        if (authToken) {
+            loadProfile();
+        }
+
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            
+            if (tab === 'login') {
+                document.querySelector('.tab:first-child').classList.add('active');
+                document.getElementById('loginTab').classList.add('active');
+            } else {
+                document.querySelector('.tab:last-child').classList.add('active');
+                document.getElementById('registerTab').classList.add('active');
+            }
+        }
+
+        // Login form
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('loginUsername').value;
+            const password = document.getElementById('loginPassword').value;
+            
+            try {
+                const response = await fetch(`${API_URL}/auth/login`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username, password})
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    authToken = data.token;
+                    localStorage.setItem('authToken', authToken);
+                    currentUser = data.user;
+                    showDashboard();
+                    document.getElementById('loginMessage').innerHTML = '<p class="success">Login successful!</p>';
+                } else {
+                    document.getElementById('loginMessage').innerHTML = `<p class="error">${data.error}</p>`;
+                }
+            } catch (error) {
+                document.getElementById('loginMessage').innerHTML = '<p class="error">Network error</p>';
+            }
+        });
+
+        // Register form
+        document.getElementById('registerForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const username = document.getElementById('registerUsername').value;
+            const email = document.getElementById('registerEmail').value;
+            const password = document.getElementById('registerPassword').value;
+            
+            try {
+                const response = await fetch(`${API_URL}/auth/register`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({username, email, password})
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    authToken = data.token;
+                    localStorage.setItem('authToken', authToken);
+                    currentUser = data.user;
+                    showDashboard();
+                    document.getElementById('registerMessage').innerHTML = '<p class="success">Registration successful!</p>';
+                } else {
+                    document.getElementById('registerMessage').innerHTML = `<p class="error">${data.error}</p>`;
+                }
+            } catch (error) {
+                document.getElementById('registerMessage').innerHTML = '<p class="error">Network error</p>';
+            }
+        });
+
+        async function loadProfile() {
+            try {
+                const response = await fetch(`${API_URL}/auth/profile`, {
+                    headers: {'Authorization': `Bearer ${authToken}`}
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    currentUser = data;
+                    showDashboard();
+                } else {
+                    localStorage.removeItem('authToken');
+                    authToken = null;
+                }
+            } catch (error) {
+                console.error('Failed to load profile');
+            }
+        }
+
+        function showDashboard() {
+            document.getElementById('authSection').classList.add('hidden');
+            document.getElementById('dashboardSection').classList.remove('hidden');
+            
+            document.getElementById('username').textContent = currentUser.username;
+            document.getElementById('apiKey').textContent = currentUser.apiKey;
+            document.getElementById('containersUsed').textContent = currentUser.containersUsed || 0;
+            document.getElementById('containerLimit').textContent = currentUser.containerLimit || 5;
+            document.getElementById('userRole').textContent = currentUser.role;
+            
+            if (currentUser.role === 'admin') {
+                document.getElementById('adminSection').classList.remove('hidden');
+            }
+        }
+
+        function logout() {
+            localStorage.removeItem('authToken');
+            authToken = null;
+            currentUser = null;
+            document.getElementById('authSection').classList.remove('hidden');
+            document.getElementById('dashboardSection').classList.add('hidden');
+        }
+
+        async function regenerateApiKey() {
+            try {
+                const response = await fetch(`${API_URL}/auth/regenerate-api-key`, {
+                    method: 'POST',
+                    headers: {'Authorization': `Bearer ${authToken}`}
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById('apiKey').textContent = data.apiKey;
+                    alert('API key regenerated successfully!');
+                }
+            } catch (error) {
+                alert('Failed to regenerate API key');
+            }
+        }
+
+        async function loadUsers() {
+            try {
+                const response = await fetch(`${API_URL}/auth/users`, {
+                    headers: {'Authorization': `Bearer ${authToken}`}
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    displayUsers(data.users);
+                } else {
+                    alert('Failed to load users');
+                }
+            } catch (error) {
+                alert('Network error');
+            }
+        }
+
+        function displayUsers(users) {
+            const table = document.getElementById('usersTable');
+            const tbody = document.getElementById('usersTableBody');
+            
+            tbody.innerHTML = users.map(user => `
+                <tr>
+                    <td>${user.id}</td>
+                    <td>${user.username}</td>
+                    <td>${user.email}</td>
+                    <td>${user.role}</td>
+                    <td>${user.containers_used}/${user.container_limit}</td>
+                    <td>${user.is_active ? 'Yes' : 'No'}</td>
+                    <td>
+                        <button onclick="toggleUserStatus(${user.id}, ${!user.is_active})">
+                            ${user.is_active ? 'Deactivate' : 'Activate'}
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+            
+            table.classList.remove('hidden');
+        }
+
+        async function toggleUserStatus(userId, activate) {
+            try {
+                const response = await fetch(`${API_URL}/auth/users/${userId}`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({isActive: activate})
+                });
+                
+                if (response.ok) {
+                    loadUsers();
+                }
+            } catch (error) {
+                alert('Failed to update user');
+            }
+        }
+
+        // Container Management Functions
+        function showCreateContainer() {
+            document.getElementById('createContainerForm').classList.remove('hidden');
+        }
+
+        function hideCreateContainer() {
+            document.getElementById('createContainerForm').classList.add('hidden');
+            document.getElementById('createMessage').innerHTML = '';
+        }
+
+        async function createContainer() {
+            try {
+                const template = document.getElementById('containerTemplate').value;
+                const memory = parseInt(document.getElementById('containerMemory').value);
+                const ttl = parseInt(document.getElementById('containerTTL').value);
+                
+                const response = await fetch(`${API_URL}/containers/create`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        template: template,
+                        maxMemory: memory,
+                        ttl: ttl
+                    })
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    document.getElementById('createMessage').innerHTML = '<p class="success">Container created successfully!</p>';
+                    hideCreateContainer();
+                    loadContainers();
+                    loadProfile(); // Refresh usage stats
+                } else {
+                    document.getElementById('createMessage').innerHTML = `<p class="error">${data.error}</p>`;
+                }
+            } catch (error) {
+                document.getElementById('createMessage').innerHTML = '<p class="error">Failed to create container</p>';
+            }
+        }
+
+        async function loadContainers() {
+            try {
+                const response = await fetch(`${API_URL}/containers`, {
+                    headers: {'Authorization': `Bearer ${authToken}`}
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    displayContainers(data.containers);
+                } else {
+                    document.getElementById('containersMessage').innerHTML = 'Failed to load containers';
+                }
+            } catch (error) {
+                document.getElementById('containersMessage').innerHTML = 'Network error loading containers';
+            }
+        }
+
+        function displayContainers(containers) {
+            const table = document.getElementById('containersTable');
+            const tbody = document.getElementById('containersTableBody');
+            const message = document.getElementById('containersMessage');
+            
+            if (containers.length === 0) {
+                table.classList.add('hidden');
+                message.innerHTML = 'No containers found. Create your first container above!';
+                return;
+            }
+            
+            tbody.innerHTML = containers.map(container => `
+                <tr>
+                    <td title="${container.id}">${container.id.substring(0, 12)}...</td>
+                    <td>${container.name}</td>
+                    <td>${container.image}</td>
+                    <td><span style="color: ${container.status === 'running' ? 'green' : 'orange'}">${container.status}</span></td>
+                    <td>${new Date(container.created).toLocaleString()}</td>
+                    <td>
+                        <button onclick="openTerminal('${container.id}')" style="margin-right: 5px;">Terminal</button>
+                        <button onclick="stopContainer('${container.id}')" style="margin-right: 5px;">Stop</button>
+                        <button onclick="deleteContainer('${container.id}')" style="background: #dc3545;">Delete</button>
+                    </td>
+                </tr>
+            `).join('');
+            
+            table.classList.remove('hidden');
+            message.innerHTML = '';
+        }
+
+        async function stopContainer(containerId) {
+            if (!confirm('Are you sure you want to stop this container?')) return;
+            
+            try {
+                const response = await fetch(`${API_URL}/containers/${containerId}/stop`, {
+                    method: 'POST',
+                    headers: {'Authorization': `Bearer ${authToken}`}
+                });
+                
+                if (response.ok) {
+                    loadContainers();
+                } else {
+                    alert('Failed to stop container');
+                }
+            } catch (error) {
+                alert('Network error');
+            }
+        }
+
+        async function deleteContainer(containerId) {
+            if (!confirm('Are you sure you want to delete this container? This action cannot be undone.')) return;
+            
+            try {
+                const response = await fetch(`${API_URL}/containers/${containerId}`, {
+                    method: 'DELETE',
+                    headers: {'Authorization': `Bearer ${authToken}`}
+                });
+                
+                if (response.ok) {
+                    loadContainers();
+                    loadProfile(); // Refresh usage stats
+                    alert('Container deleted successfully');
+                } else {
+                    alert('Failed to delete container');
+                }
+            } catch (error) {
+                alert('Network error');
+            }
+        }
+
+        function openTerminal(containerId) {
+            // For now, show instructions - could be enhanced with a web terminal
+            const wsUrl = API_URL.replace('http', 'ws') + '/terminal?container=' + containerId + '&token=' + authToken;
+            
+            const instructions = `To connect to this container's terminal, use:
+
+WebSocket URL: ${wsUrl}
+
+Or use the API to execute commands:
+curl -X POST "${API_URL}/containers/${containerId}/exec" \\
+  -H "Authorization: Bearer ${authToken}" \\
+  -H "Content-Type: application/json" \\
+  -d '{"command": "ls -la"}'`;
+            
+            alert(instructions);
+        }
+    </script>
+</body>
+</html>
