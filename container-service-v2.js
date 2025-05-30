@@ -329,12 +329,25 @@ app.post("/containers/create", auth, async (req, res) => {
         res.json({
             id: container.id || container.name || container,
             name: container.name || container.id || container,
-            status: "running",
+            status: container.status || "creating",
             template: req.body.template || 'custom',
-            expires: new Date(Date.now() + config.ttl * 1000).toISOString()
+            expires: new Date(Date.now() + config.ttl * 1000).toISOString(),
+            message: "Container creation started. Check status for progress."
         });
     } catch (error) {
         console.error('Create container error:', error);
+        res.status(500).json({error: error.message});
+    }
+});
+
+// Get container creation status
+app.get("/containers/:id/status", auth, async (req, res) => {
+    try {
+        const lxcBackend = BackendFactory.create('lxd');
+        const status = await lxcBackend.getCreationStatus(req.params.id);
+        res.json(status);
+    } catch (error) {
+        console.error('Get status error:', error);
         res.status(500).json({error: error.message});
     }
 });
