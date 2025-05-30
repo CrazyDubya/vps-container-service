@@ -1,0 +1,43 @@
+JWT Secret generated: 9addbffde1fa61188c2d1c1ba3973ecb3ea0e4c9a8cf4318d77baf227024031b
+Legacy API Key (for migration): 37451081e488ff112f0638fd6fce52aea3d22777d9c7e9cf9aec05dac6532999
+
+Authentication endpoints:
+  POST /auth/register - Register new user
+  POST /auth/login - Login user
+  GET  /auth/profile - Get user profile
+
+Admin endpoints:
+  GET  /auth/users - List all users
+  GET  /auth/audit-log - View audit log
+
+Access URLs:
+  HTTP:  http://31.97.128.225:3000
+  HTTPS: https://31.97.128.225:3443
+HTTP Container service running on port 3000
+WebSocket terminal available at ws://localhost:3000/terminal
+HTTPS Container service running on port 3443
+WebSocket terminal available at wss://localhost:3443/terminal
+Creating container: lxc launch ubuntu:22.04 cf-qp4qjfpzf --config limits.memory=512MB
+Creating container: lxc launch ubuntu:22.04 cf-0b0x141g8 --config limits.memory=512MB
+Creating container: lxc launch ubuntu:22.04 cf-rnj0vzl1s --config limits.memory=512MB
+Container creation failed: Command failed: lxc launch ubuntu:22.04 cf-qp4qjfpzf --config limits.memory=512MB
+
+Create container error: Error: Failed to create LXD container: Command failed: lxc launch ubuntu:22.04 cf-qp4qjfpzf --config limits.memory=512MB
+
+    at LXDBackend.create (/home/stephen/vps-container-service/lib/lxd-backend.js:73:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async /home/stephen/vps-container-service/container-service-v2.js:310:27
+Container creation failed: Command failed: lxc launch ubuntu:22.04 cf-0b0x141g8 --config limits.memory=512MB
+
+Create container error: Error: Failed to create LXD container: Command failed: lxc launch ubuntu:22.04 cf-0b0x141g8 --config limits.memory=512MB
+
+    at LXDBackend.create (/home/stephen/vps-container-service/lib/lxd-backend.js:73:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async /home/stephen/vps-container-service/container-service-v2.js:310:27
+Container creation failed: Command failed: lxc launch ubuntu:22.04 cf-rnj0vzl1s --config limits.memory=512MB
+
+Create container error: Error: Failed to create LXD container: Command failed: lxc launch ubuntu:22.04 cf-rnj0vzl1s --config limits.memory=512MB
+
+    at LXDBackend.create (/home/stephen/vps-container-service/lib/lxd-backend.js:73:13)
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5)
+    at async /home/stephen/vps-container-service/container-service-v2.js:310:27

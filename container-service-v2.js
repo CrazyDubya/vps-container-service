@@ -69,7 +69,7 @@ const cleanupExpiredContainers = async () => {
     const now = new Date();
     
     for (const container of containers) {
-      const labels = container.Labels || {};
+      const labels = container.Labels || container.labels || {};
       if (labels['cf-expires']) {
         const expires = new Date(labels['cf-expires']);
         if (expires < now) {
@@ -313,7 +313,7 @@ app.post("/containers/create", auth, async (req, res) => {
         if (template.init && template.init.length > 0) {
             for (const cmd of template.init) {
                 try {
-                    await lxcBackend.exec(container.id, cmd);
+                    await lxcBackend.exec(container.id || container.name || container, cmd);
                 } catch (initError) {
                     console.error(`Init command failed: ${cmd}`, initError.message);
                 }
@@ -327,8 +327,8 @@ app.post("/containers/create", auth, async (req, res) => {
         }
         
         res.json({
-            id: container.id,
-            name: container.name,
+            id: container.id || container.name || container,
+            name: container.name || container.id || container,
             status: "running",
             template: req.body.template || 'custom',
             expires: new Date(Date.now() + config.ttl * 1000).toISOString()
@@ -348,7 +348,7 @@ app.get("/containers", auth, async (req, res) => {
         
         // Filter containers by user
         const userContainers = containers.filter(container => {
-            const labels = container.Labels || {};
+            const labels = container.Labels || container.labels || {};
             if (user.is_legacy) {
                 return labels['cf-user'] === 'legacy' || !labels['cf-user-id'];
             }
@@ -356,13 +356,13 @@ app.get("/containers", auth, async (req, res) => {
         });
         
         const containerList = userContainers.map(container => ({
-            id: container.Id,
-            name: container.Names[0].replace('/', ''),
-            image: container.Image,
-            status: container.State,
-            created: new Date(container.Created * 1000).toISOString(),
-            labels: container.Labels || {},
-            ports: container.Ports || []
+            id: container.id || container.Id || container.name,
+            name: container.name || (container.Names && container.Names[0].replace('/', '')) || container.id,
+            image: container.image || container.Image,
+            status: container.status || container.State,
+            created: container.created || (container.Created ? new Date(container.Created * 1000).toISOString() : new Date().toISOString()),
+            labels: container.labels || container.Labels || {},
+            ports: container.ports || container.Ports || []
         }));
         
         res.json({containers: containerList});
@@ -380,13 +380,17 @@ app.get("/containers/:id", auth, async (req, res) => {
         
         // Verify container ownership
         const containers = await lxcBackend.list();
-        const container = containers.find(c => c.Id.startsWith(req.params.id));
+        const container = containers.find(c => 
+            (c.Id && c.Id.startsWith(req.params.id)) || 
+            (c.id && c.id.startsWith(req.params.id)) ||
+            (c.name && c.name.startsWith(req.params.id))
+        );
         
         if (!container) {
             return res.status(404).json({error: "Container not found"});
         }
         
-        const labels = container.Labels || {};
+        const labels = container.Labels || container.labels || {};
         const isOwner = user.is_legacy ? 
             (labels['cf-user'] === 'legacy' || !labels['cf-user-id']) :
             (labels['cf-user-id'] === user.id.toString());
@@ -423,13 +427,13 @@ app.post("/containers/:id/stop", auth, async (req, res) => {
         
         // Verify ownership
         const containers = await lxcBackend.list();
-        const container = containers.find(c => c.Id.startsWith(req.params.id));
+        const container = containers.find(c => (c.Id && c.Id.startsWith(req.params.id)) || (c.id && c.id.startsWith(req.params.id)) || (c.name && c.name.startsWith(req.params.id)));
         
         if (!container) {
             return res.status(404).json({error: "Container not found"});
         }
         
-        const labels = container.Labels || {};
+        const labels = container.Labels || container.labels || {};
         const isOwner = user.is_legacy ? 
             (labels['cf-user'] === 'legacy' || !labels['cf-user-id']) :
             (labels['cf-user-id'] === user.id.toString());
@@ -459,13 +463,13 @@ app.delete("/containers/:id", auth, async (req, res) => {
         
         // Verify ownership
         const containers = await lxcBackend.list();
-        const container = containers.find(c => c.Id.startsWith(req.params.id));
+        const container = containers.find(c => (c.Id && c.Id.startsWith(req.params.id)) || (c.id && c.id.startsWith(req.params.id)) || (c.name && c.name.startsWith(req.params.id)));
         
         if (!container) {
             return res.status(404).json({error: "Container not found"});
         }
         
-        const labels = container.Labels || {};
+        const labels = container.Labels || container.labels || {};
         const isOwner = user.is_legacy ? 
             (labels['cf-user'] === 'legacy' || !labels['cf-user-id']) :
             (labels['cf-user-id'] === user.id.toString());
@@ -497,13 +501,13 @@ app.post("/containers/:id/exec", auth, async (req, res) => {
         
         // Verify ownership
         const containers = await lxcBackend.list();
-        const container = containers.find(c => c.Id.startsWith(req.params.id));
+        const container = containers.find(c => (c.Id && c.Id.startsWith(req.params.id)) || (c.id && c.id.startsWith(req.params.id)) || (c.name && c.name.startsWith(req.params.id)));
         
         if (!container) {
             return res.status(404).json({error: "Container not found"});
         }
         
-        const labels = container.Labels || {};
+        const labels = container.Labels || container.labels || {};
         const isOwner = user.is_legacy ? 
             (labels['cf-user'] === 'legacy' || !labels['cf-user-id']) :
             (labels['cf-user-id'] === user.id.toString());
@@ -532,13 +536,13 @@ app.get("/containers/:id/logs", auth, async (req, res) => {
         
         // Verify ownership
         const containers = await lxcBackend.list();
-        const container = containers.find(c => c.Id.startsWith(req.params.id));
+        const container = containers.find(c => (c.Id && c.Id.startsWith(req.params.id)) || (c.id && c.id.startsWith(req.params.id)) || (c.name && c.name.startsWith(req.params.id)));
         
         if (!container) {
             return res.status(404).json({error: "Container not found"});
         }
         
-        const labels = container.Labels || {};
+        const labels = container.Labels || container.labels || {};
         const isOwner = user.is_legacy ? 
             (labels['cf-user'] === 'legacy' || !labels['cf-user-id']) :
             (labels['cf-user-id'] === user.id.toString());
@@ -565,13 +569,13 @@ app.get("/containers/:id/stats", auth, async (req, res) => {
         
         // Verify ownership
         const containers = await lxcBackend.list();
-        const container = containers.find(c => c.Id.startsWith(req.params.id));
+        const container = containers.find(c => (c.Id && c.Id.startsWith(req.params.id)) || (c.id && c.id.startsWith(req.params.id)) || (c.name && c.name.startsWith(req.params.id)));
         
         if (!container) {
             return res.status(404).json({error: "Container not found"});
         }
         
-        const labels = container.Labels || {};
+        const labels = container.Labels || container.labels || {};
         const isOwner = user.is_legacy ? 
             (labels['cf-user'] === 'legacy' || !labels['cf-user-id']) :
             (labels['cf-user-id'] === user.id.toString());
@@ -605,13 +609,13 @@ app.post("/containers/:id/files", auth, upload.single('file'), async (req, res) 
         
         // Verify ownership
         const containers = await lxcBackend.list();
-        const container = containers.find(c => c.Id.startsWith(req.params.id));
+        const container = containers.find(c => (c.Id && c.Id.startsWith(req.params.id)) || (c.id && c.id.startsWith(req.params.id)) || (c.name && c.name.startsWith(req.params.id)));
         
         if (!container) {
             return res.status(404).json({error: "Container not found"});
         }
         
-        const labels = container.Labels || {};
+        const labels = container.Labels || container.labels || {};
         const isOwner = user.is_legacy ? 
             (labels['cf-user'] === 'legacy' || !labels['cf-user-id']) :
             (labels['cf-user-id'] === user.id.toString());
@@ -651,13 +655,13 @@ app.get("/containers/:id/files/*", auth, async (req, res) => {
         
         // Verify ownership
         const containers = await lxcBackend.list();
-        const container = containers.find(c => c.Id.startsWith(req.params.id));
+        const container = containers.find(c => (c.Id && c.Id.startsWith(req.params.id)) || (c.id && c.id.startsWith(req.params.id)) || (c.name && c.name.startsWith(req.params.id)));
         
         if (!container) {
             return res.status(404).json({error: "Container not found"});
         }
         
-        const labels = container.Labels || {};
+        const labels = container.Labels || container.labels || {};
         const isOwner = user.is_legacy ? 
             (labels['cf-user'] === 'legacy' || !labels['cf-user-id']) :
             (labels['cf-user-id'] === user.id.toString());
@@ -737,7 +741,7 @@ const handleWebSocketConnection = async (ws, req) => {
             return;
         }
         
-        const labels = container.Labels || {};
+        const labels = container.Labels || container.labels || {};
         const isOwner = user.is_legacy ? 
             (labels['cf-user'] === 'legacy' || !labels['cf-user-id']) :
             (labels['cf-user-id'] === user.id.toString());

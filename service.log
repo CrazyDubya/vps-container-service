@@ -1,4 +1,10 @@
-API Key: ebcca45295dc11dc25ede5f341b59e0502b107b1ecf97b1bd5347fcdb5fa5f29
+
+> cf-container-service@1.0.0 start
+> node container-service.js
+
+API Key: 66ca13d5a8f0fe94903b9e2df0580710cf31797c2aaec379b48bfed2f7311764
 Container service running on port 3000
 WebSocket terminal available at ws://localhost:3000/terminal
-API Key: ebcca45295dc11dc25ede5f341b59e0502b107b1ecf97b1bd5347fcdb5fa5f29
+API Key: 66ca13d5a8f0fe94903b9e2df0580710cf31797c2aaec379b48bfed2f7311764
+Cleanup error: connect ENOENT /var/run/docker.sock
+Cleanup error: connect ENOENT /var/run/docker.sock
