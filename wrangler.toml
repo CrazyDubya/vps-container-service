@@ -1,0 +1,21 @@
+# Cloudflare Worker Configuration for VPS Container Service
+name = "vps-container-service"
+main = "cloudflare-worker.js"
+compatibility_date = "2024-01-01"
+
+# Production environment
+[env.production]
+name = "vps-container-service"
+
+# Environment variables
+[env.production.vars]
+BACKEND_SERVER = "https://31.97.128.225:3443"
+BACKEND_SERVER_HTTPS = "https://31.97.128.225:3443"
+
+# Development environment (optional)
+[env.development]
+name = "vps-container-service-dev"
+
+[env.development.vars]
+BACKEND_SERVER = "http://localhost:3000"
+BACKEND_SERVER_HTTPS = "https://localhost:3443"
