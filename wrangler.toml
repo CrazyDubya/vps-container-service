@@ -9,8 +9,8 @@ name = "vps-container-service"
 
 # Environment variables
 [env.production.vars]
-BACKEND_SERVER = "https://31.97.128.225:3443"
-BACKEND_SERVER_HTTPS = "https://31.97.128.225:3443"
+BACKEND_SERVER = "https://containers.conflost.com:3443"
+BACKEND_SERVER_HTTPS = "https://containers.conflost.com:3443"
 
 # Development environment (optional)
 [env.development]

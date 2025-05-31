@@ -26,3 +26,6 @@ WebSocket terminal available at ws://localhost:3000/terminal
 HTTPS Container service running on port 3443
 WebSocket terminal available at wss://localhost:3443/terminal
 Creating container: lxc launch 18b1e751a208 cf-poe6ll156 --config limits.memory=256MB
+Creating container: lxc launch 18b1e751a208 cf-scp6dhyg8 --config limits.memory=256MB
+Creating container: lxc launch 18b1e751a208 cf-pcs1zskmf --config limits.memory=512MB
+Shutting down...

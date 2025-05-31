@@ -1,19 +1,9 @@
-/**
- * Cloudflare Worker for VPS Container Service
- * Serves the GUI and proxies API calls to the backend server
- */
-
-// Your server configuration (will be overridden by environment variables)
-const DEFAULT_BACKEND_SERVER = 'https://containers.conflost.com:3443'; // Use HTTPS backend
-const DEFAULT_BACKEND_SERVER_HTTPS = 'https://containers.conflost.com:3443';
-
-// HTML content - we'll embed the GUI directly
-const HTML_CONTENT = `<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Container Service - Cloud Development Platform</title>
+    <title>Container Service - User Management</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -228,22 +218,10 @@ const HTML_CONTENT = `<!DOCTYPE html>
             color: #6c757d;
             font-size: 0.9em;
         }
-        .cf-powered {
-            position: fixed;
-            bottom: 10px;
-            right: 10px;
-            background: #f38020;
-            color: white;
-            padding: 5px 10px;
-            border-radius: 4px;
-            font-size: 12px;
-            opacity: 0.8;
-        }
     </style>
 </head>
 <body>
-    <h1>🐳 Container Service - Cloud Development Platform</h1>
-    <div class="cf-powered">⚡ Powered by Cloudflare Workers</div>
+    <h1>🐳 Container Service - User Management</h1>
     
     <div class="container" id="authSection">
         <div class="tab-nav">
@@ -403,13 +381,13 @@ const HTML_CONTENT = `<!DOCTYPE html>
             <h3>Example API Calls</h3>
             <pre class="code">
 # Using API Key
-curl -H "x-api-key: YOUR_API_KEY" http://31-97-128-225.nip.io:3000/containers
+curl -H "x-api-key: YOUR_API_KEY" https://vps-container.loca.lt/containers
 
 # Create a Python container
-curl -X POST -H "x-api-key: YOUR_API_KEY" \\
-     -H "Content-Type: application/json" \\
-     -d '{"template": "python"}' \\
-     http://31-97-128-225.nip.io:3000/containers/create
+curl -X POST -H "x-api-key: YOUR_API_KEY" \
+     -H "Content-Type: application/json" \
+     -d '{"template": "python"}' \
+     https://vps-container.loca.lt/containers/create
             </pre>
         </div>
         
@@ -434,8 +412,18 @@ curl -X POST -H "x-api-key: YOUR_API_KEY" \\
     </div>
 
     <script>
-        // Use worker proxy for API calls (avoids mixed content issues)
-        const API_URL = '';
+        // Auto-detect protocol and use appropriate URL
+        const protocol = window.location.protocol;
+        const host = window.location.hostname;
+        
+        // For tunnel access, don't append port
+        let API_URL;
+        if (host.includes('loca.lt') || host.includes('ngrok.io')) {
+            API_URL = `${protocol}//${host}`;
+        } else {
+            const port = window.location.port || (protocol === 'https:' ? '3443' : '3000');
+            API_URL = `${protocol}//${host}:${port}`;
+        }
         
         let authToken = localStorage.getItem('authToken');
         let currentUser = null;
@@ -465,7 +453,7 @@ curl -X POST -H "x-api-key: YOUR_API_KEY" \\
             const password = document.getElementById('loginPassword').value;
             
             try {
-                const response = await fetch('/api/auth/login', {
+                const response = await fetch(`${API_URL}/auth/login`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({username, password})
@@ -479,7 +467,7 @@ curl -X POST -H "x-api-key: YOUR_API_KEY" \\
                     showDashboard();
                     document.getElementById('loginMessage').innerHTML = '<p class="success">Login successful!</p>';
                 } else {
-                    document.getElementById('loginMessage').innerHTML = \`<p class="error">\${data.error}</p>\`;
+                    document.getElementById('loginMessage').innerHTML = `<p class="error">${data.error}</p>`;
                 }
             } catch (error) {
                 document.getElementById('loginMessage').innerHTML = '<p class="error">Network error</p>';
@@ -494,7 +482,7 @@ curl -X POST -H "x-api-key: YOUR_API_KEY" \\
             const password = document.getElementById('registerPassword').value;
             
             try {
-                const response = await fetch('/api/auth/register', {
+                const response = await fetch(`${API_URL}/auth/register`, {
                     method: 'POST',
                     headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({username, email, password})
@@ -508,7 +496,7 @@ curl -X POST -H "x-api-key: YOUR_API_KEY" \\
                     showDashboard();
                     document.getElementById('registerMessage').innerHTML = '<p class="success">Registration successful!</p>';
                 } else {
-                    document.getElementById('registerMessage').innerHTML = \`<p class="error">\${data.error}</p>\`;
+                    document.getElementById('registerMessage').innerHTML = `<p class="error">${data.error}</p>`;
                 }
             } catch (error) {
                 document.getElementById('registerMessage').innerHTML = '<p class="error">Network error</p>';
@@ -517,8 +505,8 @@ curl -X POST -H "x-api-key: YOUR_API_KEY" \\
 
         async function loadProfile() {
             try {
-                const response = await fetch('/api/auth/profile', {
-                    headers: {'Authorization': \`Bearer \${authToken}\`}
+                const response = await fetch(`${API_URL}/auth/profile`, {
+                    headers: {'Authorization': `Bearer ${authToken}`}
                 });
                 
                 if (response.ok) {
@@ -545,7 +533,7 @@ curl -X POST -H "x-api-key: YOUR_API_KEY" \\
             
             const roleLabel = document.getElementById('roleLabel');
             roleLabel.textContent = currentUser.role;
-            roleLabel.className = \`status-badge \${currentUser.role === 'admin' ? 'status-running' : 'status-stopped'}\`;
+            roleLabel.className = `status-badge ${currentUser.role === 'admin' ? 'status-running' : 'status-stopped'}`;
             
             if (currentUser.role === 'admin') {
                 document.getElementById('adminSection').classList.remove('hidden');
@@ -566,18 +554,77 @@ curl -X POST -H "x-api-key: YOUR_API_KEY" \\
 
         async function regenerateApiKey() {
             try {
-                const response = await fetch('/api/auth/regenerate-api-key', {
+                const response = await fetch(`${API_URL}/auth/regenerate-api-key`, {
                     method: 'POST',
-                    headers: {'Authorization': \`Bearer \${authToken}\`}
+                    headers: {'Authorization': `Bearer ${authToken}`}
                 });
                 
                 if (response.ok) {
                     const data = await response.json();
                     document.getElementById('apiKey').textContent = data.apiKey;
-                    showAlert('API key regenerated successfully!', 'success');
+                    alert('API key regenerated successfully!');
                 }
             } catch (error) {
-                showAlert('Failed to regenerate API key', 'error');
+                alert('Failed to regenerate API key');
+            }
+        }
+
+        async function loadUsers() {
+            try {
+                const response = await fetch(`${API_URL}/auth/users`, {
+                    headers: {'Authorization': `Bearer ${authToken}`}
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    displayUsers(data.users);
+                } else {
+                    alert('Failed to load users');
+                }
+            } catch (error) {
+                alert('Network error');
+            }
+        }
+
+        function displayUsers(users) {
+            const table = document.getElementById('usersTable');
+            const tbody = document.getElementById('usersTableBody');
+            
+            tbody.innerHTML = users.map(user => `
+                <tr>
+                    <td>${user.id}</td>
+                    <td>${user.username}</td>
+                    <td>${user.email}</td>
+                    <td>${user.role}</td>
+                    <td>${user.containers_used}/${user.container_limit}</td>
+                    <td>${user.is_active ? 'Yes' : 'No'}</td>
+                    <td>
+                        <button onclick="toggleUserStatus(${user.id}, ${!user.is_active})">
+                            ${user.is_active ? 'Deactivate' : 'Activate'}
+                        </button>
+                    </td>
+                </tr>
+            `).join('');
+            
+            table.classList.remove('hidden');
+        }
+
+        async function toggleUserStatus(userId, activate) {
+            try {
+                const response = await fetch(`${API_URL}/auth/users/${userId}`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({isActive: activate})
+                });
+                
+                if (response.ok) {
+                    loadUsers();
+                }
+            } catch (error) {
+                alert('Failed to update user');
             }
         }
 
@@ -653,7 +700,7 @@ curl -X POST -H "x-api-key: YOUR_API_KEY" \\
             if (hours === 1) {
                 info.textContent = 'Container will auto-delete after 1 hour';
             } else {
-                info.textContent = \`Container will auto-delete after \${hours} hours\`;
+                info.textContent = `Container will auto-delete after ${hours} hours`;
             }
         }
         
@@ -670,10 +717,10 @@ curl -X POST -H "x-api-key: YOUR_API_KEY" \\
             const alerts = document.getElementById('alerts');
             const alertDiv = document.createElement('div');
             alertDiv.className = type;
-            alertDiv.innerHTML = \`
-                <strong>\${type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️'}</strong> \${message}
+            alertDiv.innerHTML = `
+                <strong>${type === 'error' ? '❌' : type === 'success' ? '✅' : 'ℹ️'}</strong> ${message}
                 <button onclick="this.parentElement.remove()" style="float: right; background: none; border: none; font-size: 18px; cursor: pointer;">&times;</button>
-            \`;
+            `;
             alerts.appendChild(alertDiv);
             
             // Auto-remove after 5 seconds
@@ -706,8 +753,8 @@ curl -X POST -H "x-api-key: YOUR_API_KEY" \\
                 const progressInterval = setInterval(() => {
                     progress += Math.random() * 15;
                     if (progress > 85) progress = 85; // Don't complete until we get response
-                    progressFill.style.width = \`\${progress}%\`;
-                    progressFill.textContent = \`\${Math.round(progress)}%\`;
+                    progressFill.style.width = `${progress}%`;
+                    progressFill.textContent = `${Math.round(progress)}%`;
                 }, 200);
                 
                 // Update status messages
@@ -731,10 +778,10 @@ curl -X POST -H "x-api-key: YOUR_API_KEY" \\
                 const memory = parseInt(document.getElementById('containerMemory').value);
                 const ttl = parseInt(document.getElementById('containerTTL').value);
                 
-                const response = await fetch('/api/containers/create', {
+                const response = await fetch(`${API_URL}/containers/create`, {
                     method: 'POST',
                     headers: {
-                        'Authorization': \`Bearer \${authToken}\`,
+                        'Authorization': `Bearer ${authToken}`,
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
@@ -756,21 +803,21 @@ curl -X POST -H "x-api-key: YOUR_API_KEY" \\
                     progressFill.textContent = '40%';
                     statusText.textContent = 'Container creation initiated...';
                     
-                    showAlert(\`⏳ Creating container "\${data.name}"...\`, 'info');
+                    showAlert(`⏳ Creating container "${data.name}"...`, 'info');
                     
                     // Start polling for status
                     const statusCheckInterval = setInterval(async () => {
                         try {
-                            const statusResponse = await fetch(\`\${API_URL}/containers/\${containerId}/status\`, {
-                                headers: {'Authorization': \`Bearer \${authToken}\`}
+                            const statusResponse = await fetch(`${API_URL}/containers/${containerId}/status`, {
+                                headers: {'Authorization': `Bearer ${authToken}`}
                             });
                             
                             if (statusResponse.ok) {
                                 const status = await statusResponse.json();
                                 
                                 if (status.progress) {
-                                    progressFill.style.width = \`\${status.progress}%\`;
-                                    progressFill.textContent = \`\${status.progress}%\`;
+                                    progressFill.style.width = `${status.progress}%`;
+                                    progressFill.textContent = `${status.progress}%`;
                                 }
                                 
                                 if (status.message) {
@@ -783,7 +830,7 @@ curl -X POST -H "x-api-key: YOUR_API_KEY" \\
                                     progressFill.textContent = '100%';
                                     statusText.textContent = 'Container created successfully!';
                                     
-                                    showAlert(\`✅ Container "\${data.name}" is ready!\`, 'success');
+                                    showAlert(`✅ Container "${data.name}" is ready!`, 'success');
                                     
                                     setTimeout(() => {
                                         hideCreateContainer();
@@ -799,7 +846,7 @@ curl -X POST -H "x-api-key: YOUR_API_KEY" \\
                                     progressFill.textContent = 'Failed';
                                     statusText.textContent = status.error || 'Container creation failed';
                                     
-                                    showAlert(\`❌ Failed to create container: \${status.error}\`, 'error');
+                                    showAlert(`❌ Failed to create container: ${status.error}`, 'error');
                                     
                                     setTimeout(() => {
                                         resetCreationForm();
@@ -816,9 +863,9 @@ curl -X POST -H "x-api-key: YOUR_API_KEY" \\
                     progressFill.style.width = '100%';
                     progressFill.style.background = '#dc3545';
                     progressFill.textContent = 'Failed';
-                    statusText.textContent = \`Error: \${data.error}\`;
+                    statusText.textContent = `Error: ${data.error}`;
                     
-                    showAlert(\`❌ Failed to create container: \${data.error}\`, 'error');
+                    showAlert(`❌ Failed to create container: ${data.error}`, 'error');
                     
                     // Reset form after delay
                     setTimeout(() => {
@@ -852,8 +899,8 @@ curl -X POST -H "x-api-key: YOUR_API_KEY" \\
                 refreshBtn.disabled = true;
                 refreshIcon.style.animation = 'spin 1s linear infinite';
                 
-                const response = await fetch('/api/containers', {
-                    headers: {'Authorization': \`Bearer \${authToken}\`}
+                const response = await fetch(`${API_URL}/containers`, {
+                    headers: {'Authorization': `Bearer ${authToken}`}
                 });
                 
                 if (response.ok) {
@@ -866,20 +913,20 @@ curl -X POST -H "x-api-key: YOUR_API_KEY" \\
                         document.getElementById('memoryUsage').textContent = data.stats.totalMemory || '0 MB';
                     }
                 } else {
-                    document.getElementById('containersMessage').innerHTML = \`
+                    document.getElementById('containersMessage').innerHTML = `
                         <div style="text-align: center; padding: 20px; color: #dc3545;">
                             <p style="margin: 0;">⚠️ Failed to load containers</p>
                             <button onclick="loadContainers()" style="margin-top: 10px;">🔄 Try Again</button>
                         </div>
-                    \`;
+                    `;
                 }
             } catch (error) {
-                document.getElementById('containersMessage').innerHTML = \`
+                document.getElementById('containersMessage').innerHTML = `
                     <div style="text-align: center; padding: 20px; color: #dc3545;">
                         <p style="margin: 0;">🌐 Network error loading containers</p>
                         <button onclick="loadContainers()" style="margin-top: 10px;">🔄 Retry</button>
                     </div>
-                \`;
+                `;
             } finally {
                 // Reset loading state
                 refreshBtn.disabled = false;
@@ -896,12 +943,12 @@ curl -X POST -H "x-api-key: YOUR_API_KEY" \\
             
             if (containers.length === 0) {
                 listArea.innerHTML = '';
-                message.innerHTML = \`
+                message.innerHTML = `
                     <div style="text-align: center; padding: 40px; background: #f8f9fa; border-radius: 8px; border: 2px dashed #dee2e6;">
                         <h3 style="color: #6c757d; margin: 0 0 10px 0;">🐳 No containers yet</h3>
                         <p style="color: #6c757d; margin: 0;">Create your first container using the button above!</p>
                     </div>
-                \`;
+                `;
                 return;
             }
             
@@ -911,36 +958,53 @@ curl -X POST -H "x-api-key: YOUR_API_KEY" \\
                                   container.status === 'stopped' ? 'status-stopped' : 'status-creating';
                 const timeAgo = getTimeAgo(new Date(container.created));
                 
-                return \`
+                return `
                     <div class="container-card">
                         <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 15px;">
                             <div>
                                 <h4 style="margin: 0 0 5px 0; color: #333;">
-                                    \${container.name || 'Unnamed Container'}
-                                    <span class="status-badge \${statusClass}" style="margin-left: 10px;">\${container.status}</span>
+                                    ${container.name || 'Unnamed Container'}
+                                    <span class="status-badge ${statusClass}" style="margin-left: 10px;">${container.status}</span>
                                 </h4>
                                 <p style="margin: 0; color: #6c757d; font-size: 0.9em;">
-                                    <strong>Image:</strong> \${container.image || container.template || 'Unknown'} • 
-                                    <strong>Created:</strong> \${timeAgo}
+                                    <strong>Image:</strong> ${container.image || container.template || 'Unknown'} • 
+                                    <strong>Created:</strong> ${timeAgo}
                                 </p>
                                 <p style="margin: 5px 0 0 0; color: #6c757d; font-size: 0.8em; font-family: monospace;">
-                                    ID: \${container.id ? container.id.substring(0, 12) + '...' : 'Unknown'}
+                                    ID: ${container.id ? container.id.substring(0, 12) + '...' : 'Unknown'}
                                 </p>
                             </div>
                             <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                                \${container.status === 'running' ? 
-                                    \`<button onclick="openTerminal('\${container.id}')" style="background: #28a745; font-size: 12px; padding: 6px 12px;">🖥️ Terminal</button>\` : 
+                                ${container.status === 'running' ? 
+                                    `<button onclick="openTerminal('${container.id}')" style="background: #28a745; font-size: 12px; padding: 6px 12px;">🖥️ Terminal</button>` : 
                                     '<button disabled style="font-size: 12px; padding: 6px 12px;">🖥️ Terminal</button>'
                                 }
-                                <button onclick="stopContainer('\${container.id}')" 
-                                        \${container.status !== 'running' ? 'disabled' : ''} 
+                                <button onclick="stopContainer('${container.id}')" 
+                                        ${container.status !== 'running' ? 'disabled' : ''} 
                                         style="background: #ffc107; color: #212529; font-size: 12px; padding: 6px 12px;">⏹️ Stop</button>
-                                <button onclick="deleteContainer('\${container.id}')" 
+                                <button onclick="deleteContainer('${container.id}')" 
                                         style="background: #dc3545; font-size: 12px; padding: 6px 12px;">🗑️ Delete</button>
                             </div>
                         </div>
+                        
+                        ${container.stats ? `
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; padding: 10px; background: #f8f9fa; border-radius: 4px;">
+                                <div style="text-align: center;">
+                                    <div style="font-weight: bold; color: #007bff;">${container.stats.cpu || '0%'}</div>
+                                    <div style="font-size: 0.8em; color: #6c757d;">CPU</div>
+                                </div>
+                                <div style="text-align: center;">
+                                    <div style="font-weight: bold; color: #007bff;">${container.stats.memory || '0 MB'}</div>
+                                    <div style="font-size: 0.8em; color: #6c757d;">Memory</div>
+                                </div>
+                                <div style="text-align: center;">
+                                    <div style="font-weight: bold; color: #007bff;">${container.stats.network || '0 KB/s'}</div>
+                                    <div style="font-size: 0.8em; color: #6c757d;">Network</div>
+                                </div>
+                            </div>
+                        ` : ''}
                     </div>
-                \`;
+                `;
             }).join('');
         }
         
@@ -952,9 +1016,9 @@ curl -X POST -H "x-api-key: YOUR_API_KEY" \\
             const diffDays = Math.floor(diffHours / 24);
             
             if (diffMins < 1) return 'Just now';
-            if (diffMins < 60) return \`\${diffMins}m ago\`;
-            if (diffHours < 24) return \`\${diffHours}h ago\`;
-            if (diffDays < 7) return \`\${diffDays}d ago\`;
+            if (diffMins < 60) return `${diffMins}m ago`;
+            if (diffHours < 24) return `${diffHours}h ago`;
+            if (diffDays < 7) return `${diffDays}d ago`;
             return date.toLocaleDateString();
         }
 
@@ -962,19 +1026,18 @@ curl -X POST -H "x-api-key: YOUR_API_KEY" \\
             if (!confirm('Are you sure you want to stop this container?')) return;
             
             try {
-                const response = await fetch(\`\${API_URL}/containers/\${containerId}/stop\`, {
+                const response = await fetch(`${API_URL}/containers/${containerId}/stop`, {
                     method: 'POST',
-                    headers: {'Authorization': \`Bearer \${authToken}\`}
+                    headers: {'Authorization': `Bearer ${authToken}`}
                 });
                 
                 if (response.ok) {
                     loadContainers();
-                    showAlert('Container stopped successfully', 'success');
                 } else {
-                    showAlert('Failed to stop container', 'error');
+                    alert('Failed to stop container');
                 }
             } catch (error) {
-                showAlert('Network error', 'error');
+                alert('Network error');
             }
         }
 
@@ -982,193 +1045,39 @@ curl -X POST -H "x-api-key: YOUR_API_KEY" \\
             if (!confirm('Are you sure you want to delete this container? This action cannot be undone.')) return;
             
             try {
-                const response = await fetch(\`\${API_URL}/containers/\${containerId}\`, {
+                const response = await fetch(`${API_URL}/containers/${containerId}`, {
                     method: 'DELETE',
-                    headers: {'Authorization': \`Bearer \${authToken}\`}
+                    headers: {'Authorization': `Bearer ${authToken}`}
                 });
                 
                 if (response.ok) {
                     loadContainers();
                     loadProfile(); // Refresh usage stats
-                    showAlert('Container deleted successfully', 'success');
+                    alert('Container deleted successfully');
                 } else {
-                    showAlert('Failed to delete container', 'error');
+                    alert('Failed to delete container');
                 }
             } catch (error) {
-                showAlert('Network error', 'error');
+                alert('Network error');
             }
         }
 
         function openTerminal(containerId) {
             // For now, show instructions - could be enhanced with a web terminal
-            const wsUrl = window.location.origin.replace('http', 'ws') + '/api/terminal?container=' + containerId + '&token=' + authToken;
+            const wsUrl = API_URL.replace('http', 'ws') + '/terminal?container=' + containerId + '&token=' + authToken;
             
-            const instructions = \`To connect to this container's terminal, use:
+            const instructions = `To connect to this container's terminal, use:
 
-WebSocket URL: \${wsUrl}
+WebSocket URL: ${wsUrl}
 
 Or use the API to execute commands:
-curl -X POST "\${window.location.origin}/api/containers/\${containerId}/exec" \\\\
-  -H "Authorization: Bearer \${authToken}" \\\\
-  -H "Content-Type: application/json" \\\\
-  -d '{"command": "ls -la"}'\`;
+curl -X POST "${API_URL}/containers/${containerId}/exec" \\
+  -H "Authorization: Bearer ${authToken}" \\
+  -H "Content-Type: application/json" \\
+  -d '{"command": "ls -la"}'`;
             
             alert(instructions);
         }
-
-        async function loadUsers() {
-            try {
-                const response = await fetch('/api/auth/users', {
-                    headers: {'Authorization': \`Bearer \${authToken}\`}
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    displayUsers(data.users);
-                } else {
-                    showAlert('Failed to load users', 'error');
-                }
-            } catch (error) {
-                showAlert('Network error', 'error');
-            }
-        }
-
-        function displayUsers(users) {
-            const table = document.getElementById('usersTable');
-            const tbody = document.getElementById('usersTableBody');
-            
-            tbody.innerHTML = users.map(user => \`
-                <tr>
-                    <td>\${user.id}</td>
-                    <td>\${user.username}</td>
-                    <td>\${user.email}</td>
-                    <td>\${user.role}</td>
-                    <td>\${user.containers_used}/\${user.container_limit}</td>
-                    <td>\${user.is_active ? 'Yes' : 'No'}</td>
-                    <td>
-                        <button onclick="toggleUserStatus(\${user.id}, \${!user.is_active})">
-                            \${user.is_active ? 'Deactivate' : 'Activate'}
-                        </button>
-                    </td>
-                </tr>
-            \`).join('');
-            
-            table.classList.remove('hidden');
-        }
-
-        async function toggleUserStatus(userId, activate) {
-            try {
-                const response = await fetch(\`\${API_URL}/auth/users/\${userId}\`, {
-                    method: 'PATCH',
-                    headers: {
-                        'Authorization': \`Bearer \${authToken}\`,
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({isActive: activate})
-                });
-                
-                if (response.ok) {
-                    loadUsers();
-                    showAlert('User updated successfully', 'success');
-                }
-            } catch (error) {
-                showAlert('Failed to update user', 'error');
-            }
-        }
     </script>
 </body>
-</html>`;
-
-// Main worker handler
-export default {
-  async fetch(request, env, ctx) {
-    // Use environment variables if available, otherwise use defaults
-    const BACKEND_SERVER = env.BACKEND_SERVER || DEFAULT_BACKEND_SERVER;
-    const BACKEND_SERVER_HTTPS = env.BACKEND_SERVER_HTTPS || DEFAULT_BACKEND_SERVER_HTTPS;
-    
-    const url = new URL(request.url);
-    
-    // Serve the GUI for the root path
-    if (url.pathname === '/' || url.pathname === '/index.html') {
-      return new Response(HTML_CONTENT, {
-        headers: {
-          'Content-Type': 'text/html; charset=utf-8',
-          'Cache-Control': 'public, max-age=300', // 5 minutes cache
-        },
-      });
-    }
-    
-    // Proxy API requests to backend
-    if (url.pathname.startsWith('/api/')) {
-      return await proxyToBackend(request, url, BACKEND_SERVER);
-    }
-    
-    // WebSocket upgrade for terminals
-    if (url.pathname === '/api/terminal') {
-      return await proxyWebSocket(request, url, BACKEND_SERVER);
-    }
-    
-    // 404 for other paths
-    return new Response('Not Found', { status: 404 });
-  },
-};
-
-// Proxy API requests to backend server
-async function proxyToBackend(request, url, backendServer) {
-  // Remove /api prefix for backend
-  const backendPath = url.pathname.replace('/api', '');
-  const backendUrl = `${backendServer}${backendPath}${url.search}`;
-  
-  // Forward the request to backend
-  const modifiedRequest = new Request(backendUrl, {
-    method: request.method,
-    headers: request.headers,
-    body: request.body,
-  });
-  
-  try {
-    const response = await fetch(modifiedRequest);
-    
-    // Add CORS headers
-    const modifiedResponse = new Response(response.body, {
-      status: response.status,
-      statusText: response.statusText,
-      headers: {
-        ...Object.fromEntries(response.headers),
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization, x-api-key',
-      },
-    });
-    
-    return modifiedResponse;
-  } catch (error) {
-    return new Response(JSON.stringify({
-      error: 'Backend server unavailable',
-      details: error.message
-    }), {
-      status: 503,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      },
-    });
-  }
-}
-
-// Proxy WebSocket connections
-async function proxyWebSocket(request, url, backendServer) {
-  const backendUrl = `${backendServer.replace('http:', 'ws:').replace('https:', 'wss:')}/terminal${url.search}`;
-  
-  // For now, return instructions since WebSocket proxying in Workers requires more setup
-  return new Response(JSON.stringify({
-    message: 'WebSocket terminal access',
-    websocketUrl: backendUrl,
-    instructions: 'Use a WebSocket client to connect to the backend directly'
-  }), {
-    headers: {
-      'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-    },
-  });
-}
+</html>

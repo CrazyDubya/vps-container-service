@@ -1,0 +1,20 @@
+🚀 Starting Container Service...
+📦 Backend: lxd
+🔐 Auth: JWT + API Keys
+
+Authentication endpoints:
+  POST /auth/register - Register new user
+  POST /auth/login - Login user
+  GET  /auth/profile - Get user profile
+
+Admin endpoints:
+  GET  /auth/users - List all users
+  GET  /auth/audit-log - View audit log
+
+Access URLs:
+  HTTP:  http://containers.conflost.com:3000
+  HTTPS: https://containers.conflost.com:3443
+HTTP Container service running on port 3000
+WebSocket terminal available at ws://containers.conflost.com:3000/terminal
+HTTPS Container service running on port 3443
+WebSocket terminal available at wss://containers.conflost.com:3443/terminal

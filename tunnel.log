@@ -1,5 +1,1 @@
-
-> cf-container-service@1.0.0 tunnel
-> npx localtunnel --port 3000 --subdomain vps-container
-
 your url is: https://vps-container.loca.lt
