@@ -4,7 +4,7 @@
  */
 
 // Your server configuration (will be overridden by environment variables)
-const DEFAULT_BACKEND_SERVER = 'https://containers.conflost.com:3443'; // Use HTTPS backend
+const DEFAULT_BACKEND_SERVER = 'http://containers.conflost.com:3000'; // Use HTTP until proper SSL cert
 const DEFAULT_BACKEND_SERVER_HTTPS = 'https://containers.conflost.com:3443';
 
 // HTML content - we'll embed the GUI directly
@@ -1124,6 +1124,8 @@ async function proxyToBackend(request, url, backendServer) {
     method: request.method,
     headers: request.headers,
     body: request.body,
+    // Note: Cloudflare Workers don't allow disabling certificate validation
+    // The backend needs a valid SSL certificate
   });
   
   try {

@@ -527,7 +527,10 @@ curl -X POST -H "x-api-key: YOUR_API_KEY" \
             document.getElementById('dashboardSection').classList.remove('hidden');
             
             document.getElementById('username').textContent = currentUser.username;
-            document.getElementById('apiKey').textContent = currentUser.apiKey;
+            // API keys are hidden for security - only shown when regenerated
+            document.getElementById('apiKey').textContent = currentUser.hasApiKey ? 
+                '••••••••••••••••••••• (hidden for security)' : 
+                'No API key - click Regenerate to create one';
             document.getElementById('containersUsed').textContent = currentUser.containersUsed || 0;
             document.getElementById('containerLimit').textContent = currentUser.containerLimit || 5;
             

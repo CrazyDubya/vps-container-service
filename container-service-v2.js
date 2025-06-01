@@ -125,13 +125,27 @@ const cleanupExpiredContainers = async () => {
 setInterval(cleanupExpiredContainers, CLEANUP_INTERVAL);
 
 const PORT = process.env.PORT || 3000;
+const HTTP_PORT = process.env.HTTP_PORT || 80;
 const HTTPS_PORT = process.env.HTTPS_PORT || 3443;
 const BIND_ADDRESS = process.env.BIND_ADDRESS || "0.0.0.0";
 const SERVER_HOST = process.env.SERVER_HOST || "localhost";
 
+// Start on port 3000 (current)
 server.listen(PORT, BIND_ADDRESS, () => {
     console.log(`HTTP Container service running on port ${PORT}`);
     console.log(`WebSocket terminal available at ws://${SERVER_HOST}:${PORT}${process.env.WS_PATH || '/terminal'}`);
+});
+
+// Also start on port 80 for standard HTTP and Let's Encrypt
+const httpServer80 = http.createServer(app);
+httpServer80.listen(HTTP_PORT, BIND_ADDRESS, () => {
+    console.log(`HTTP service also running on port ${HTTP_PORT} (standard HTTP)`);
+}).on('error', (err) => {
+    if (err.code === 'EACCES') {
+        console.log(`⚠️  Port ${HTTP_PORT} requires root privileges. Run with sudo or use port 3000`);
+    } else if (err.code === 'EADDRINUSE') {
+        console.log(`ℹ️  Port ${HTTP_PORT} already in use. Using port ${PORT} only.`);
+    }
 });
 
 if (httpsServer) {
@@ -150,6 +164,7 @@ console.log(`  GET  /auth/users - List all users`);
 console.log(`  GET  /auth/audit-log - View audit log`);
 console.log(`\nAccess URLs:`);
 console.log(`  HTTP:  http://${SERVER_HOST}:${PORT}`);
+console.log(`  HTTP:  http://${SERVER_HOST}/ (standard port, if available)`);
 if (httpsServer) {
     console.log(`  HTTPS: https://${SERVER_HOST}:${HTTPS_PORT}`);
 }
@@ -372,6 +387,51 @@ app.get("/containers/:id", auth, async (req, res) => {
     } catch (error) {
         console.error('Get container error:', error);
         res.status(500).json({error: error.message});
+    }
+});
+
+// Get container creation status (for progress tracking)
+app.get("/containers/:id/status", auth, async (req, res) => {
+    try {
+        const backend = backendManager.getDefaultBackend();
+        const user = req.user;
+        
+        // Verify ownership
+        const containers = await backend.list();
+        const container = containers.find(c => c.Id.startsWith(req.params.id));
+        
+        if (!container) {
+            // Container might still be creating
+            return res.json({
+                status: 'creating',
+                progress: 40,
+                message: 'Container is being created...'
+            });
+        }
+        
+        const isOwner = verifyContainerOwnership(container, user);
+        if (!isOwner && user.role !== 'admin') {
+            return res.status(403).json({error: "Access denied"});
+        }
+        
+        // Container exists and is ready
+        res.json({
+            status: 'ready',
+            progress: 100,
+            message: 'Container is ready!',
+            container: {
+                id: container.Id,
+                name: container.Names[0].replace('/', ''),
+                status: container.State
+            }
+        });
+    } catch (error) {
+        console.error('Container status error:', error);
+        res.json({
+            status: 'failed',
+            progress: 100,
+            error: error.message
+        });
     }
 });
 
