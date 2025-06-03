@@ -370,7 +370,7 @@ app.get("/containers/:id", auth, async (req, res) => {
             return res.status(403).json({error: "Access denied"});
         }
         
-        const info = await lxcBackend.inspect(req.params.id);
+        const info = await backend.inspect(req.params.id);
         
         res.json({
             id: info.Id,
@@ -456,7 +456,7 @@ app.post("/containers/:id/stop", auth, async (req, res) => {
             return res.status(403).json({error: "Access denied"});
         }
         
-        await lxcBackend.stop(req.params.id);
+        await backend.stop(req.params.id);
         
         if (user.role !== 'admin') {
             await db.logAction(user.id, 'stop_container', 'container', req.params.id, req.ip);
@@ -493,7 +493,7 @@ app.delete("/containers/:id", auth, async (req, res) => {
             return res.status(403).json({error: "Access denied"});
         }
         
-        await lxcBackend.delete(req.params.id);
+        await backend.delete(req.params.id);
         
         // Update container count
         if (labels['cf-user-id'] === user.id.toString()) {
@@ -532,7 +532,7 @@ app.post("/containers/:id/exec", auth, async (req, res) => {
             return res.status(403).json({error: "Access denied"});
         }
         
-        const result = await lxcBackend.exec(req.params.id, req.body.command);
+        const result = await backend.exec(req.params.id, req.body.command);
         
         res.json({
             output: result.output,
@@ -566,7 +566,7 @@ app.get("/containers/:id/logs", auth, async (req, res) => {
         }
         
         const lines = parseInt(req.query.lines) || 100;
-        const logs = await lxcBackend.logs(req.params.id, lines);
+        const logs = await backend.logs(req.params.id, lines);
         
         res.json({logs});
     } catch (error) {
@@ -602,7 +602,7 @@ app.get("/containers/:id/stats", auth, async (req, res) => {
             return res.status(403).json({error: "Access denied"});
         }
         
-        const stats = await lxcBackend.stats(req.params.id);
+        const stats = await backend.stats(req.params.id);
         
         // Cache stats for 30 seconds
         await cacheManager.cacheContainerStats(req.params.id, stats);
@@ -648,7 +648,7 @@ app.post("/containers/:id/files", auth, upload.single('file'), async (req, res) 
         }
         
         const targetPath = req.body.path || `/workspace/${req.file.originalname}`;
-        await lxcBackend.copyTo(req.params.id, req.file.path, targetPath);
+        await backend.copyTo(req.params.id, req.file.path, targetPath);
         
         // Clean up temp file
         fs.unlinkSync(req.file.path);
@@ -690,7 +690,7 @@ app.get("/containers/:id/files/*", auth, async (req, res) => {
         const filePath = '/' + req.params[0];
         const tempPath = `/tmp/download-${Date.now()}-${path.basename(filePath)}`;
         
-        await lxcBackend.copyFrom(req.params.id, filePath, tempPath);
+        await backend.copyFrom(req.params.id, filePath, tempPath);
         
         res.download(tempPath, path.basename(filePath), (err) => {
             if (fs.existsSync(tempPath)) {
@@ -765,7 +765,7 @@ const handleWebSocketConnection = async (ws, req) => {
             return;
         }
         
-        const exec = await lxcBackend.attachInteractive(containerId);
+        const exec = await backend.attachInteractive(containerId);
         
         terminalSessions.set(ws, {
             exec,
