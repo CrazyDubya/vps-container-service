@@ -21,7 +21,16 @@ async function setupTestUser() {
         });
         
         if (existingUser) {
-            console.log('Test user already exists');
+            console.log('Test user already exists - updating container limit...');
+            // Update container limit
+            await new Promise((resolve, reject) => {
+                db.db.run('UPDATE users SET container_limit = ? WHERE username = ?', 
+                    [5, testUsername], (err) => {
+                    if (err) reject(err);
+                    else resolve();
+                });
+            });
+            console.log('✅ Test user updated successfully');
             return;
         }
         
@@ -31,7 +40,7 @@ async function setupTestUser() {
             email: testEmail,
             password: testPassword,
             role: 'admin',
-            container_limit: 10
+            container_limit: 5
         });
         
         // Set API key for test user

@@ -50,6 +50,14 @@ const verifyContainerOwnership = (container, user) => {
     return labels['cf-user-id'] === user.id.toString();
 };
 
+// Helper function to find container by ID prefix
+const findContainerById = (containers, id) => {
+    return containers.find(c => {
+        const containerId = c.id || c.Id;
+        return containerId && containerId.startsWith(id);
+    });
+};
+
 // Removed legacy API key system - using JWT/API key authentication only
 
 // Create default admin password if needed
@@ -223,11 +231,17 @@ app.get("/limits", auth, async (req, res) => {
         
         // New auth system response
         res.json({
+            userId: user.id,
             maxContainers: user.container_limit,
             currentContainers: user.containers_used,
             remainingContainers: user.container_limit - user.containers_used,
             username: user.username,
-            role: user.role
+            role: user.role,
+            containers: {
+                limit: user.container_limit,
+                used: user.containers_used,
+                remaining: user.container_limit - user.containers_used
+            }
         });
     } catch (error) {
         console.error('Limits error:', error);
@@ -309,6 +323,8 @@ app.post("/containers/create", auth, asyncHandler(async (req, res) => {
         name: containerName,
         status: "running",
         template: req.body.template || 'custom',
+        backend: 'docker',
+        ttl: config.ttl,
         expires: new Date(Date.now() + config.ttl * 1000).toISOString(),
         volumes: config.volumes || []
     });
@@ -362,7 +378,7 @@ app.get("/containers/:id", auth, async (req, res) => {
         
         // Verify container ownership
         const containers = await backend.list();
-        const container = containers.find(c => c.Id.startsWith(req.params.id));
+        const container = findContainerById(containers, req.params.id);
         
         if (!container) {
             return res.status(404).json({error: "Container not found"});
@@ -375,7 +391,7 @@ app.get("/containers/:id", auth, async (req, res) => {
             return res.status(403).json({error: "Access denied"});
         }
         
-        const info = await lxcBackend.inspect(req.params.id);
+        const info = await backend.inspect(req.params.id);
         
         res.json({
             id: info.Id,
@@ -403,7 +419,7 @@ app.get("/containers/:id/status", auth, async (req, res) => {
         
         // Verify ownership
         const containers = await backend.list();
-        const container = containers.find(c => c.Id.startsWith(req.params.id));
+        const container = findContainerById(containers, req.params.id);
         
         if (!container) {
             // Container might still be creating
@@ -448,7 +464,7 @@ app.post("/containers/:id/stop", auth, async (req, res) => {
         
         // Verify ownership
         const containers = await backend.list();
-        const container = containers.find(c => c.Id.startsWith(req.params.id));
+        const container = findContainerById(containers, req.params.id);
         
         if (!container) {
             return res.status(404).json({error: "Container not found"});
@@ -461,7 +477,7 @@ app.post("/containers/:id/stop", auth, async (req, res) => {
             return res.status(403).json({error: "Access denied"});
         }
         
-        await lxcBackend.stop(req.params.id);
+        await backend.stop(req.params.id);
         
         if (user.role !== 'admin') {
             await db.logAction(user.id, 'stop_container', 'container', req.params.id, req.ip);
@@ -485,7 +501,7 @@ app.delete("/containers/:id", auth, async (req, res) => {
         
         // Verify ownership
         const containers = await backend.list();
-        const container = containers.find(c => c.Id.startsWith(req.params.id));
+        const container = findContainerById(containers, req.params.id);
         
         if (!container) {
             return res.status(404).json({error: "Container not found"});
@@ -498,7 +514,7 @@ app.delete("/containers/:id", auth, async (req, res) => {
             return res.status(403).json({error: "Access denied"});
         }
         
-        await lxcBackend.delete(req.params.id);
+        await backend.delete(req.params.id);
         
         // Update container count
         if (labels['cf-user-id'] === user.id.toString()) {
@@ -524,7 +540,7 @@ app.post("/containers/:id/exec", auth, async (req, res) => {
         
         // Verify ownership
         const containers = await backend.list();
-        const container = containers.find(c => c.Id.startsWith(req.params.id));
+        const container = findContainerById(containers, req.params.id);
         
         if (!container) {
             return res.status(404).json({error: "Container not found"});
@@ -537,7 +553,7 @@ app.post("/containers/:id/exec", auth, async (req, res) => {
             return res.status(403).json({error: "Access denied"});
         }
         
-        const result = await lxcBackend.exec(req.params.id, req.body.command);
+        const result = await backend.exec(req.params.id, req.body.command);
         
         res.json({
             output: result.output,
@@ -557,7 +573,7 @@ app.get("/containers/:id/logs", auth, async (req, res) => {
         
         // Verify ownership
         const containers = await backend.list();
-        const container = containers.find(c => c.Id.startsWith(req.params.id));
+        const container = findContainerById(containers, req.params.id);
         
         if (!container) {
             return res.status(404).json({error: "Container not found"});
@@ -571,7 +587,7 @@ app.get("/containers/:id/logs", auth, async (req, res) => {
         }
         
         const lines = parseInt(req.query.lines) || 100;
-        const logs = await lxcBackend.logs(req.params.id, lines);
+        const logs = await backend.logs(req.params.id, lines);
         
         res.json({logs});
     } catch (error) {
@@ -594,7 +610,7 @@ app.get("/containers/:id/stats", auth, async (req, res) => {
         
         // Verify ownership
         const containers = await backend.list();
-        const container = containers.find(c => c.Id.startsWith(req.params.id));
+        const container = findContainerById(containers, req.params.id);
         
         if (!container) {
             return res.status(404).json({error: "Container not found"});
@@ -607,7 +623,7 @@ app.get("/containers/:id/stats", auth, async (req, res) => {
             return res.status(403).json({error: "Access denied"});
         }
         
-        const stats = await lxcBackend.stats(req.params.id);
+        const stats = await backend.stats(req.params.id);
         
         // Cache stats for 30 seconds
         await cacheManager.cacheContainerStats(req.params.id, stats);
@@ -635,7 +651,7 @@ app.post("/containers/:id/files", auth, upload.single('file'), async (req, res) 
         
         // Verify ownership
         const containers = await backend.list();
-        const container = containers.find(c => c.Id.startsWith(req.params.id));
+        const container = findContainerById(containers, req.params.id);
         
         if (!container) {
             return res.status(404).json({error: "Container not found"});
@@ -653,7 +669,7 @@ app.post("/containers/:id/files", auth, upload.single('file'), async (req, res) 
         }
         
         const targetPath = req.body.path || `/workspace/${req.file.originalname}`;
-        await lxcBackend.copyTo(req.params.id, req.file.path, targetPath);
+        await backend.copyTo(req.params.id, req.file.path, targetPath);
         
         // Clean up temp file
         fs.unlinkSync(req.file.path);
@@ -679,7 +695,7 @@ app.get("/containers/:id/files/*", auth, async (req, res) => {
         
         // Verify ownership
         const containers = await backend.list();
-        const container = containers.find(c => c.Id.startsWith(req.params.id));
+        const container = findContainerById(containers, req.params.id);
         
         if (!container) {
             return res.status(404).json({error: "Container not found"});
@@ -695,7 +711,7 @@ app.get("/containers/:id/files/*", auth, async (req, res) => {
         const filePath = '/' + req.params[0];
         const tempPath = `/tmp/download-${Date.now()}-${path.basename(filePath)}`;
         
-        await lxcBackend.copyFrom(req.params.id, filePath, tempPath);
+        await backend.copyFrom(req.params.id, filePath, tempPath);
         
         res.download(tempPath, path.basename(filePath), (err) => {
             if (fs.existsSync(tempPath)) {
@@ -753,7 +769,7 @@ const handleWebSocketConnection = async (ws, req) => {
         
         // Verify container ownership
         const containers = await backend.list();
-        const container = containers.find(c => c.Id.startsWith(containerId));
+        const container = findContainerById(containers, containerId);
         
         if (!container) {
             ws.send('Container not found');
@@ -770,7 +786,7 @@ const handleWebSocketConnection = async (ws, req) => {
             return;
         }
         
-        const exec = await lxcBackend.attachInteractive(containerId);
+        const exec = await backend.attachInteractive(containerId);
         
         terminalSessions.set(ws, {
             exec,

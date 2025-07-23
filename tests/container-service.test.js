@@ -339,7 +339,7 @@ describe('Container Service API Tests', () => {
         .post('/containers/create')
         .set('x-api-key', API_KEY)
         .send({
-          template: 'nodejs',
+          template: 'node',
           maxMemory: 512,
           ttl: 300
         })
