@@ -1,0 +1,19 @@
+{
+  "timestamp": "2025-07-23T13:26:30.288Z",
+  "service": {
+    "port": 3000,
+    "apiKey": "test-api...",
+    "version": "1.0.0"
+  },
+  "environment": {
+    "node": "v20.19.3",
+    "platform": "linux",
+    "arch": "x64"
+  },
+  "results": {
+    "passed": 0,
+    "failed": 0,
+    "skipped": 0,
+    "errors": []
+  }
+}
