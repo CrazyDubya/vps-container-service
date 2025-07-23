@@ -294,18 +294,23 @@ app.post("/containers/create", auth, asyncHandler(async (req, res) => {
         // Update container count
         if (user.role !== 'admin') {
             await db.incrementContainerCount(user.id);
-            await db.logAction(user.id, 'create_container', 'container', container.id, req.ip);
+            await db.logAction(user.id, 'create_container', 'container', container.id || container, req.ip);
         }
         
         // Invalidate user's container cache
         await cacheManager.invalidateUserCache(user.id);
         
+    // Handle both string ID and object response from backend
+    const containerId = typeof container === 'string' ? container : container.id;
+    const containerName = typeof container === 'string' ? containerId.substring(0, 12) : container.name;
+    
     res.json({
-        id: container.id,
-        name: container.name,
+        id: containerId,
+        name: containerName,
         status: "running",
         template: req.body.template || 'custom',
-        expires: new Date(Date.now() + config.ttl * 1000).toISOString()
+        expires: new Date(Date.now() + config.ttl * 1000).toISOString(),
+        volumes: config.volumes || []
     });
 }));
 
@@ -330,13 +335,13 @@ app.get("/containers", auth, async (req, res) => {
         });
         
         const containerList = userContainers.map(container => ({
-            id: container.Id,
-            name: container.Names[0].replace('/', ''),
-            image: container.Image,
-            status: container.State,
-            created: new Date(container.Created * 1000).toISOString(),
-            labels: container.Labels || {},
-            ports: container.Ports || []
+            id: container.id || container.Id,
+            name: container.name || (container.Names && container.Names[0] ? container.Names[0].replace('/', '') : 'unknown'),
+            image: container.image || container.Image,
+            status: container.status || container.State,
+            created: container.created || (container.Created ? new Date(container.Created * 1000).toISOString() : new Date().toISOString()),
+            labels: container.labels || container.Labels || {},
+            ports: container.ports || container.Ports || []
         }));
         
         // Cache the result for 30 seconds (dynamic data)
