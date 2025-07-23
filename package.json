@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "main": "container-service.js",
   "scripts": {
-    "start": "node container-service-v2.js",
-    "start:legacy": "node container-service.js",
+    "start": "node container-service.js",
+    "start:v2": "node container-service-v2.js",
     "setup": "./setup-images.sh",
     "test": "node tests/run-tests.js",
     "test:unit": "jest tests/container-service.test.js",

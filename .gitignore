@@ -1,3 +1,4 @@
 service.log
 node_modules/
 .env
+coverage/

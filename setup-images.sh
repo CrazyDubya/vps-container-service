@@ -115,7 +115,20 @@ test_templates() {
 # Main execution
 echo "🔍 Detecting container runtime..."
 
-if check_lxd; then
+# Check environment preference first
+BACKEND_TYPE=${BACKEND_TYPE:-docker}
+echo "Backend preference: $BACKEND_TYPE"
+
+if [[ "$BACKEND_TYPE" == "docker" ]] && check_docker; then
+    download_docker_images
+elif [[ "$BACKEND_TYPE" == "lxd" ]] && check_lxd; then
+    download_lxd_images
+    test_templates
+elif check_docker; then
+    echo "Falling back to Docker"
+    download_docker_images
+elif check_lxd; then
+    echo "Falling back to LXD"
     download_lxd_images
     test_templates
 elif check_docker; then
