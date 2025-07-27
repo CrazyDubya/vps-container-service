@@ -21,11 +21,11 @@ async function setupTestUser() {
         });
         
         if (existingUser) {
-            console.log('Test user already exists - updating container limit...');
-            // Update container limit
+            console.log('Test user already exists - updating to admin user and container limit...');
+            // Update role and container limit
             await new Promise((resolve, reject) => {
-                db.db.run('UPDATE users SET container_limit = ? WHERE username = ?', 
-                    [5, testUsername], (err) => {
+                db.db.run('UPDATE users SET container_limit = ?, role = ? WHERE username = ?', 
+                    [5, 'admin', testUsername], (err) => {
                     if (err) reject(err);
                     else resolve();
                 });

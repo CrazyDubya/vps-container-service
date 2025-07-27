@@ -2,3 +2,6 @@ service.log
 node_modules/
 .env
 coverage/
+tests/test-report.json
+users.db
+*.log

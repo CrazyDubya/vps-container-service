@@ -115,7 +115,7 @@ const cleanupExpiredContainers = async () => {
         const expires = new Date(labels['cf-expires']);
         if (expires < now) {
           console.log(`Cleaning up expired container: ${container.Names[0]}`);
-          await backend.delete(container.Id);
+          await backend.remove(container.Id);
           
           // Update user container count if user is tracked
           const userId = labels['cf-user-id'];
@@ -196,7 +196,8 @@ app.get("/templates", auth, asyncHandler(async (req, res) => {
         const templateList = listTemplates();
         
         return {
-            templates: templateList,
+            templates: templatesByCategory,
+            list: templateList,
             categories: templatesByCategory
         };
     }, 3600); // Cache for 1 hour
@@ -403,7 +404,8 @@ app.get("/containers/:id", auth, async (req, res) => {
             labels: info.Config.Labels || {},
             env: info.Config.Env || [],
             ports: info.NetworkSettings.Ports || {},
-            volumes: info.Mounts || []
+            volumes: info.Mounts || [],
+            backend: 'docker'
         });
     } catch (error) {
         console.error('Get container error:', error);
@@ -514,7 +516,7 @@ app.delete("/containers/:id", auth, async (req, res) => {
             return res.status(403).json({error: "Access denied"});
         }
         
-        await backend.delete(req.params.id);
+        await backend.remove(req.params.id);
         
         // Update container count
         if (labels['cf-user-id'] === user.id.toString()) {
@@ -587,7 +589,7 @@ app.get("/containers/:id/logs", auth, async (req, res) => {
         }
         
         const lines = parseInt(req.query.lines) || 100;
-        const logs = await backend.logs(req.params.id, lines);
+        const logs = await backend.getLogs(req.params.id, lines);
         
         res.json({logs});
     } catch (error) {
@@ -628,7 +630,7 @@ app.get("/containers/:id/stats", auth, async (req, res) => {
         // Cache stats for 30 seconds
         await cacheManager.cacheContainerStats(req.params.id, stats);
         
-        res.json({stats});
+        res.json(stats);
     } catch (error) {
         console.error('Stats error:', error);
         res.status(500).json({error: error.message});
@@ -668,7 +670,8 @@ app.post("/containers/:id/files", auth, upload.single('file'), async (req, res) 
             return res.status(400).json({error: "No file uploaded"});
         }
         
-        const targetPath = req.body.path || `/workspace/${req.file.originalname}`;
+        const targetDir = req.body.path || '/workspace';
+        const targetPath = `${targetDir}/${req.file.originalname}`;
         await backend.copyTo(req.params.id, req.file.path, targetPath);
         
         // Clean up temp file
