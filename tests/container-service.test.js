@@ -296,11 +296,11 @@ describe('Container Service API Tests', () => {
         .expect(401);
     });
 
-    test('Non-existent container operations should return 404/500', async () => {
+    test('Non-existent container operations should return 404', async () => {
       await request(API_BASE)
         .get('/containers/non-existent-id')
         .set('x-api-key', API_KEY)
-        .expect(500); // Should return error for non-existent container
+        .expect(404); // Should return 404 for non-existent container
     });
   });
 

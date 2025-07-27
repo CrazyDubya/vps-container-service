@@ -115,7 +115,7 @@ const cleanupExpiredContainers = async () => {
         const expires = new Date(labels['cf-expires']);
         if (expires < now) {
           console.log(`Cleaning up expired container: ${container.Names[0]}`);
-          await backend.delete(container.Id);
+          await backend.remove(container.Id);
           
           // Update user container count if user is tracked
           const userId = labels['cf-user-id'];
@@ -514,7 +514,7 @@ app.delete("/containers/:id", auth, async (req, res) => {
             return res.status(403).json({error: "Access denied"});
         }
         
-        await backend.delete(req.params.id);
+        await backend.remove(req.params.id);
         
         // Update container count
         if (labels['cf-user-id'] === user.id.toString()) {
@@ -587,7 +587,7 @@ app.get("/containers/:id/logs", auth, async (req, res) => {
         }
         
         const lines = parseInt(req.query.lines) || 100;
-        const logs = await backend.logs(req.params.id, lines);
+        const logs = await backend.getLogs(req.params.id, lines);
         
         res.json({logs});
     } catch (error) {
