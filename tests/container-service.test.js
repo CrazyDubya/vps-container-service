@@ -243,13 +243,24 @@ describe('Container Service API Tests', () => {
 
   describe('File Operations', () => {
     test('POST /containers/:id/files should upload files', async () => {
-      if (!testContainerId) {
-        console.warn('No test container available for file upload test');
+      // Create a fresh container for file operations since previous tests stop the container
+      const createResponse = await request(API_BASE)
+        .post('/containers/create')
+        .set('x-api-key', API_KEY)
+        .send({
+          template: 'alpine',
+          ttl: 300
+        });
+      
+      if (createResponse.status !== 200) {
+        console.warn('Failed to create container for file upload test');
         return;
       }
       
+      const fileTestContainerId = createResponse.body.id;
+      
       const response = await request(API_BASE)
-        .post(`/containers/${testContainerId}/files`)
+        .post(`/containers/${fileTestContainerId}/files`)
         .set('x-api-key', API_KEY)
         .attach('file', Buffer.from('Test file content'), 'test.txt')
         .field('path', '/tmp')
@@ -257,28 +268,49 @@ describe('Container Service API Tests', () => {
       
       expect(response.body).toHaveProperty('message');
       expect(response.body).toHaveProperty('path', '/tmp/test.txt');
+      
+      // Cleanup
+      await request(API_BASE)
+        .delete(`/containers/${fileTestContainerId}`)
+        .set('x-api-key', API_KEY);
     });
 
     test('GET /containers/:id/files/* should download files', async () => {
-      if (!testContainerId) {
-        console.warn('No test container available for file download test');
+      // Create a fresh container for file operations
+      const createResponse = await request(API_BASE)
+        .post('/containers/create')
+        .set('x-api-key', API_KEY)
+        .send({
+          template: 'alpine',
+          ttl: 300
+        });
+      
+      if (createResponse.status !== 200) {
+        console.warn('Failed to create container for file download test');
         return;
       }
       
+      const fileTestContainerId = createResponse.body.id;
+      
       // First create a file to download
       await request(API_BASE)
-        .post(`/containers/${testContainerId}/exec`)
+        .post(`/containers/${fileTestContainerId}/exec`)
         .set('x-api-key', API_KEY)
         .send({
           command: 'echo "Download test content" > /tmp/download-test.txt'
         });
       
       const response = await request(API_BASE)
-        .get(`/containers/${testContainerId}/files/tmp/download-test.txt`)
+        .get(`/containers/${fileTestContainerId}/files/tmp/download-test.txt`)
         .set('x-api-key', API_KEY)
         .expect(200);
       
       expect(response.headers['content-disposition']).toContain('download-test.txt');
+      
+      // Cleanup
+      await request(API_BASE)
+        .delete(`/containers/${fileTestContainerId}`)
+        .set('x-api-key', API_KEY);
     });
   });
 
