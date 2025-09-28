@@ -29,7 +29,7 @@ class TestRunner {
     process.env.PORT = SERVICE_PORT;
     
     return new Promise((resolve, reject) => {
-      this.serviceProcess = spawn('node', ['container-service.js'], {
+      this.serviceProcess = spawn('node', ['container-service-v2.js'], {
         stdio: ['pipe', 'pipe', 'pipe'],
         env: { ...process.env, NODE_ENV: 'test' }
       });
