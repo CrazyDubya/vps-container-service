@@ -33,7 +33,7 @@ jobs:
       - name: Require no high or critical advisories
         run: npm audit --audit-level=high
 
-      - name: Run unit tests
+      - name: Run self-contained security unit tests
         env:
           NODE_ENV: test
           JWT_SECRET: ci-only-jwt-secret-not-for-production-use-000000000000000000000000
