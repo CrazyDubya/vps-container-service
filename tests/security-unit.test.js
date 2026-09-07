@@ -18,6 +18,12 @@ function rawRun(db, sql, params = []) {
   });
 }
 
+function closeDb(db) {
+  return new Promise((resolve, reject) => {
+    db.db.close((error) => (error ? reject(error) : resolve()));
+  });
+}
+
 describe('security primitives', () => {
   let tempDir;
   let db;
@@ -27,8 +33,8 @@ describe('security primitives', () => {
     db = new Database(path.join(tempDir, 'users.sqlite3'));
   });
 
-  afterEach(() => {
-    db.close();
+  afterEach(async () => {
+    await closeDb(db);
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
