@@ -7,7 +7,8 @@
     "start:v2": "node container-service-v2.js",
     "setup": "./setup-images.sh",
     "test": "node tests/run-tests.js",
-    "test:unit": "jest tests/container-service.test.js",
+    "test:unit": "jest tests/security-unit.test.js",
+    "test:integration": "jest tests/container-service.test.js",
     "test:watch": "jest --watch",
     "dev": "nodemon container-service-v2.js",
     "tunnel": "echo 'LocalTunnel replaced with Cloudflare Worker. Deploy cloudflare-worker.js to Workers.'"
