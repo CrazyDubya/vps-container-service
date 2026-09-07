@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   remediate:
-    if: contains(github.event.head_commit.message, 'chore: run dependency remediation')
+    if: "contains(github.event.head_commit.message, 'chore: run dependency remediation')"
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
