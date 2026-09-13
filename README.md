@@ -298,3 +298,53 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 **Co-Authored-By: Claude <noreply@anthropic.com>**
 
 For support and questions, please create an issue in the GitHub repository.
+---
+
+# 🏗️ Infra/Ops Platform — consolidated
+
+> **Consolidated 2026-09-13:** this repo now hosts two absorbed infra/ops
+> projects alongside the original CF Container Service (documented above),
+> which is unchanged. Branch `clean-implementation` kept as-is.
+
+## Repository layout
+
+| Path | Component | What it is | Stack |
+|------|-----------|------------|-------|
+| `/` (root) | CF Container Service | Container orchestration API: REST + WebSocket terminals, Docker/LXD/LXC backends, JWT + API-key auth, per-user quotas, 13 env templates, Cloudflare Worker front | Node.js / Express |
+| `/compute-platform-python/` | Python compute platform | Multi-tenant secure compute: Firecracker microVM + hardened LXC backends, FastAPI server, JWT/RBAC IAM, resource manager, web dashboard, full test suite | Python / FastAPI |
+| `/ai-api-gateway/` | AI API gateway (SiloedBoss) | Multi-provider AI API orchestrator: OpenAI/Claude/Gemini/Perplexity/Monster/local routing, XML task persistence, rate limiting, web UI | Python / FastAPI |
+
+## Per-component quick start
+
+- **Container service (root):** `npm install` → `npm start` — see "Quick Start" above.
+- **compute-platform-python:** `cd compute-platform-python && pip install -e .` — see `compute-platform-python/README.md` and `TESTING.md`; run tests with `pytest`.
+- **ai-api-gateway:** `cd ai-api-gateway && pip install -r requirements.txt && uvicorn main:app` — see `ai-api-gateway/README.md`; run `pytest test_basic.py`.
+
+## ⚠️ Security notes
+
+The repo root carries committed secrets from the project's live-deployment era.
+Per the consolidation rules the git history was **not** rewritten, so these files
+exist in history permanently — treat them accordingly:
+
+- **TLS private keys** (`key.pem`, `origin.key`, `server.key`) and certs
+  (`cert.pem`, `server.crt`, `origin.csr`) at the repo root are **committed in
+  git and must be treated as compromised**. Do not reuse them anywhere;
+  regenerate and rotate all TLS material (cert CN shows IP 31.97.128.22,
+  issued 2025-05-30).
+- **`users.db`** (SQLite) at the repo root may contain user records from a live
+  deployment — treat as sensitive data, do not redistribute.
+- Committed `*.log` files (`server.log`, `service.log`, `tunnel.log`,
+  `python-server.log`, `service-v2.log`) are historical artifacts and may
+  contain tokens/IPs; do not rely on or re-publish them.
+
+Rotation/regeneration (not history-scrubbing) is the remediation path.
+
+## Provenance
+
+| Source repo | Absorbed as | Original HEAD | Archived |
+|-------------|-------------|---------------|----------|
+| `vps-secure-compute-manager` (was private — visibility change approved 2026-09-13) | `compute-platform-python/` | `9044b77067879ae8941ea0c9f2b4e6c302accc9a` | 2026-09-13 |
+| `siloed-boss-api-management` | `ai-api-gateway/` | `301a54dcc71b58b839e59e07ae6240bbbe92da19` | 2026-09-13 |
+
+Both source repos are archived with complete history preserved. Not touched by
+this consolidation: `portsy`, `Queue-Server`, `core-infrastructure` (stay standalone).
