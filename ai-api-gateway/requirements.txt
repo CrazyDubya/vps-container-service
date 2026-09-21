@@ -1,6 +1,6 @@
 annotated-types==0.6.0
 anthropic==0.20.0
-anyio==4.3.0
+anyio==4.14.2
 appnope==0.1.4
 asttokens==2.4.1
 attrs==23.2.0
@@ -27,7 +27,7 @@ google-generativeai==0.4.1
 googleapis-common-protos==1.63.0
 grpcio==1.62.1
 grpcio-status==1.62.1
-h11==0.14.0
+h11==0.16.0
 httpcore==1.0.4
 httpx==0.27.0
 huggingface-hub==0.21.4
